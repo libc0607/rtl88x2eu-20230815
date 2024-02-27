@@ -498,6 +498,8 @@ struct pkt_attrib {
 	u8 bf_pkt_type;
 #endif
 
+	u8  inject; /* == a5 if injected */
+
 #ifdef CONFIG_RTW_MGMT_QUEUE
 	u8 ps_dontq; /* 1: this frame can't be queued at PS state */
 #endif
