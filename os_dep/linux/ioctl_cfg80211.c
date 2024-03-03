@@ -4813,6 +4813,7 @@ static int cfg80211_rtw_set_txpower(struct wiphy *wiphy,
 #if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)) || defined(COMPAT_KERNEL_RELEASE))
 	int mbm = dbm * 100;
 #endif
+
 	struct rtw_wiphy_data *wiphy_data = rtw_wiphy_priv(wiphy);
 	_adapter *adapter = wiphy_to_adapter(wiphy);
 	int ret = -EOPNOTSUPP;
@@ -4826,6 +4827,10 @@ static int cfg80211_rtw_set_txpower(struct wiphy *wiphy,
 
 	RTW_INFO(FUNC_WIPHY_FMT" type:%s(%u) mbm:%d\n", FUNC_WIPHY_ARG(wiphy)
 		, nl80211_tx_power_setting_str(type), type, mbm);
+
+	if (mbm > 40*100) {
+		mbm = 40*100;	// idk why it's here but i'm' just doing copy & paste
+	}
 
 	switch (type) {
 	case NL80211_TX_POWER_AUTOMATIC:
@@ -4843,9 +4848,14 @@ static int cfg80211_rtw_set_txpower(struct wiphy *wiphy,
 		ret = 0;
 		break;
 	case NL80211_TX_POWER_FIXED:
-		if (!phy_is_txpwr_user_mbm_valid(adapter, mbm)) {
-			RTW_WARN(FUNC_WIPHY_FMT" mbm:%d not support\n", FUNC_WIPHY_ARG(wiphy), mbm);
-			goto exit;
+		if (mbm >= 0) {
+			if (!phy_is_txpwr_user_mbm_valid(adapter, mbm)) {
+				RTW_WARN(FUNC_WIPHY_FMT" mbm:%d not support\n", FUNC_WIPHY_ARG(wiphy), mbm);
+				goto exit;
+			}
+			rtw_tx_pwr_idx_override = 0;
+		} else {
+			rtw_tx_pwr_idx_override = (-1)*(mbm/100);
 		}
 		wiphy_data->txpwr_total_lmt_mbm = UNSPECIFIED_MBM;
 		wiphy_data->txpwr_total_target_mbm = mbm;
@@ -4871,19 +4881,24 @@ static int cfg80211_rtw_get_txpower(struct wiphy *wiphy,
 	struct dvobj_priv *dvobj = wiphy_to_dvobj(wiphy);
 	s16 mbm;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
-	if (wdev && wdev_to_ndev(wdev)) {
-		_adapter *adapter = (_adapter *)rtw_netdev_priv(wdev_to_ndev(wdev));
-		mbm = rtw_adapter_get_oper_txpwr_max_mbm(adapter, 1);
-		RTW_INFO(FUNC_ADPT_FMT" total max: %d mbm\n", FUNC_ADPT_ARG(adapter), mbm);
-	} else
-#endif
-	{
-		mbm = rtw_get_oper_txpwr_max_mbm(dvobj, 1);
-		RTW_INFO(FUNC_WIPHY_FMT" total max: %d mbm\n", FUNC_WIPHY_ARG(wiphy), mbm);
-	}
+	u8 override = get_overridden_tx_power_index(0);
 
-	*dbm = mbm / MBM_PDBM;
+	if (override) {
+		*dbm = -(int)override;
+	} else {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+		if (wdev && wdev_to_ndev(wdev)) {
+			_adapter *adapter = (_adapter *)rtw_netdev_priv(wdev_to_ndev(wdev));
+			mbm = rtw_adapter_get_oper_txpwr_max_mbm(adapter, 1);
+			RTW_INFO(FUNC_ADPT_FMT" total max: %d mbm\n", FUNC_ADPT_ARG(adapter), mbm);
+		} else
+#endif
+		{
+			mbm = rtw_get_oper_txpwr_max_mbm(dvobj, 1);
+			RTW_INFO(FUNC_WIPHY_FMT" total max: %d mbm\n", FUNC_WIPHY_ARG(wiphy), mbm);
+		}
+		*dbm = mbm / MBM_PDBM;
+	}
 
 	return 0;
 }

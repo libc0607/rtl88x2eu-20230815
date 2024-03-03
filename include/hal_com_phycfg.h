@@ -33,6 +33,8 @@ typedef enum _RF_TX_NUM {
 	RF_TX_NUM_NONIMPLEMENT,
 } RF_TX_NUM;
 
+#define MAX_POWER_INDEX		0x3F
+
 enum txpwr_pg_mode {
 	TXPWR_PG_WITH_PWR_IDX,
 	TXPWR_PG_WITH_TSSI_OFFSET,

@@ -775,6 +775,8 @@ void rtl8822e_set_tx_power_index(PADAPTER adapter, u32 powerindex, enum rf_path 
 
 	rate = MRateToHwRate(rate);
 
+	powerindex = (u32)get_overridden_tx_power_index((u8)powerindex);
+
 	/*
 	* For 8822E, phydm api use 4 bytes txagc value
 	* driver must combine every four 1 byte to one 4 byte and send to phydm api

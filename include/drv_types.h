@@ -583,6 +583,20 @@ struct registry_priv {
 #endif
 };
 
+extern int rtw_tx_pwr_idx_override;
+static u8 get_overridden_tx_power_index(u8 index) {
+	int override_index = *(volatile int*)&rtw_tx_pwr_idx_override;
+	if (override_index < 0)
+		override_index = 0;
+	if (override_index > MAX_POWER_INDEX)
+		override_index = MAX_POWER_INDEX;
+	*(volatile int*)&rtw_tx_pwr_idx_override = override_index;
+
+	if (override_index)
+		return (u8)override_index;
+	return index;
+}
+
 /* For registry parameters */
 #define RGTRY_OFT(field) ((u32)FIELD_OFFSET(struct registry_priv, field))
 #define RGTRY_SZ(field)   sizeof(((struct registry_priv *) 0)->field)
