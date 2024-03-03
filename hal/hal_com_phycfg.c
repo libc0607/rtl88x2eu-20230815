@@ -2347,6 +2347,7 @@ phy_set_tx_power_index_by_rate_section(
 
 	for (i = 0; i < rates_by_sections[rs].rate_num; ++i) {
 		powerIndex = (u32)get_overridden_tx_power_index((u8)powerIndex);
+		// to-do: is that really overrided? thinking when doing copy & paste
 #if DBG_TX_POWER_IDX
 		struct txpwr_idx_comp tic;
 
@@ -2358,7 +2359,7 @@ phy_set_tx_power_index_by_rate_section(
 		powerIndex = phy_get_tx_power_index_ex(pAdapter, RFPath
 			, rs, rates_by_sections[rs].rates[i], bw, band, Channel, 0);
 #endif
-		PHY_SetTxPowerIndex(pAdapter, powerIndex, RFPath, rates_by_sections[rs].rates[i]);
+		PHY_SetTxPowerIndex(pAdapter, powerIndex, RFPath, ratess_by_sections[rs].rates[i]);
 	}
 
 #ifdef CONFIG_FW_OFFLOAD_SET_TXPWR_IDX
@@ -6248,7 +6249,7 @@ u8 hal_com_get_txpwr_idx(_adapter *adapter, enum rf_path rfpath
 		base = phy_get_pg_txpwr_idx(adapter, rfpath, rs, ntx_idx, bw, band, cch);
 		rs_target = phy_get_target_txpwr(adapter, band, rfpath, rs);
 		power_idx = base + (rate_target - rs_target) + (rate_amends);
-
+		power_idx = get_overridden_tx_power_index(power_idx);
 		if (tic) {
 			if (tic->utarget == hal_spec->txgi_max)
 				tic->by_rate -= rs_target;
@@ -6279,6 +6280,7 @@ u8 hal_com_get_txpwr_idx(_adapter *adapter, enum rf_path rfpath
 		mcs7_idx = phy_get_tssi_txpwr_by_rate_ref(adapter, rfpath, bw, cch, opch);
 		base = halrf_get_tssi_codeword_for_txindex(adapter_to_phydm(adapter)) - mcs7_idx;
 		power_idx = base + rate_target + rate_amends;
+		power_idx = get_overridden_tx_power_index(power_idx);
 #else
 		base = 0;
 		power_idx = rate_target + rate_amends;
