@@ -2359,7 +2359,7 @@ phy_set_tx_power_index_by_rate_section(
 		powerIndex = phy_get_tx_power_index_ex(pAdapter, RFPath
 			, rs, rates_by_sections[rs].rates[i], bw, band, Channel, 0);
 #endif
-		PHY_SetTxPowerIndex(pAdapter, powerIndex, RFPath, ratess_by_sections[rs].rates[i]);
+		PHY_SetTxPowerIndex(pAdapter, powerIndex, RFPath, rates_by_sections[rs].rates[i]);
 	}
 
 #ifdef CONFIG_FW_OFFLOAD_SET_TXPWR_IDX
