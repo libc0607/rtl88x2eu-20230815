@@ -10,11 +10,11 @@ According to the file name, it may work with RTL8812CU or RTL8822CU (if exists).
 However, it's not been tested yet. Will update this readme till I get my RTL8812EU hardware.   
 
 My personal to-do list: 
-- Figure out how to make the packet injection works correctly (idk if i'm doing it correctly -- needs help)
+- Figure out how to make the packet injection works correctly (idk if i'm doing it correctly -- needs help) -- generally, it works! but it's not been fully tested and idk how many bugs it have (
 - Test with any OpenIPC camera
 - Figure out how to transmit in 5M/10M bandwidth (The feature is claimed to be supported in the module's product page. see [CONFIG_NARROWBAND_SUPPORTING](https://github.com/search?q=repo%3Alibc0607%2Frtl88x2eu-20230815+CONFIG_NARROWBAND_SUPPORTING&type=code) and [hal8822e_fw_10M.c](https://github.com/libc0607/rtl88x2eu-20230815/blob/v5.15.0.1/hal/rtl8822e/hal8822e_fw_10M.c))
 - Build with dkms
 - Test on more architecture, kernels, and distributions
-- An open source hardware design using the LB-LINK module, then share it somewhere else
+- An open source hardware design using the LB-LINK module, then share it somewhere else -- done, see [here](https://oshwhub.com/libc0607/bl-m8812eu2-demoboard-v1p0)  
 
 PRs welcome.
