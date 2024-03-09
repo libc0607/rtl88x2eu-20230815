@@ -1435,20 +1435,6 @@ uint loadparam(_adapter *padapter)
 #endif
 #ifdef CONFIG_NARROWBAND_SUPPORTING
 	registry_par->rtw_nb_config = (u8)rtw_nb_config;
-	switch (rtw_nb_config) {
-	case RTW_NB_CONFIG_NONE:
-		RTW_INFO("%s, Set rtw_nb_config to RTW_NB_CONFIG_NONE(%d)\n", __func__, rtw_nb_config);
-	break; 
-	case RTW_NB_CONFIG_WIDTH_10: 
-		RTW_INFO("%s, Set rtw_nb_config to RTW_NB_CONFIG_WIDTH_10(%d)\n", __func__, rtw_nb_config);
-	break; 
-	case RTW_NB_CONFIG_WIDTH_5: 
-		RTW_INFO("%s, Set rtw_nb_config to RTW_NB_CONFIG_WIDTH_5(%d)\n", __func__, rtw_nb_config);
-	break; 
-	default:
-		RTW_INFO("%s, Set rtw_nb_config to unsupported value(%d)\n", __func__, rtw_nb_config);
-	break;
-	}
 #endif
 
 #ifdef CONFIG_80211AC_VHT
