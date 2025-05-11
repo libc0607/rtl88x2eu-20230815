@@ -1237,6 +1237,7 @@ struct tx_duty_t {
 #define WOW_CAP_CSA BIT2
 #define WOW_CAP_WPA3_SAE BIT3
 #define WOW_CAP_DIS_INBAND_SIGNAL BIT4
+#define WOW_CAP_MDNS BIT5
 
 #define RFCTL_REG_WORLDWIDE(rfctl) (IS_ALPHA2_WORLDWIDE(rfctl->alpha2))
 #define RFCTL_REG_ALPHA2_UNSPEC(rfctl) (IS_ALPHA2_UNSPEC(rfctl->alpha2)) /* ex: only domain code is specified */
@@ -2189,6 +2190,16 @@ int rtw_suspend_free_assoc_resource(_adapter *padapter);
 #ifdef CONFIG_WOWLAN
 	int rtw_suspend_wow(_adapter *padapter);
 	int rtw_resume_process_wow(_adapter *padapter);
+#ifdef CONFIG_MDNS_OFFLOAD
+        int rtw_wow_add_mdns_resp(_adapter *padapter, u8 index, u8 *resp_content, u16 content_len);
+        int rtw_wow_del_mdns_resp(_adapter *padapter, u8 index);
+        int rtw_wow_get_mdns_resp_ent(_adapter *padapter, u8 index, struct rtw_mdns_resp_entry **resp_entry);
+        int rtw_wow_add_mdns_match_crit(_adapter *padapter, u8 index, u16 match_type, u16 name_offset, u16 name_len);
+        int rtw_wow_del_mdns_match_crit(_adapter *padapter, u8 index);
+        int rtw_wow_add_mdns_passthru_name(_adapter *padapter, u8 *name, u8 name_len);
+        void rtw_wow_clr_mdns_passthru_name(_adapter *padapter);
+        void rtw_wow_get_mdns_passthru_list(_adapter *padapter, struct rtw_mdns_passthru_list **passthru_list);
+#endif
 #endif
 
 /* HCI Related header file */

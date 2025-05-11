@@ -55,6 +55,15 @@ void
 odm_read_and_config_mp_8822e_phy_reg_pg(struct dm_struct *dm);
 u32 odm_get_version_mp_8822e_phy_reg_pg(void);
 
+/******************************************************************************
+ *                           phy_reg_pg_type5.TXT
+ ******************************************************************************/
+
+/* tc: Test Chip, mp: mp Chip*/
+void
+odm_read_and_config_mp_8822e_phy_reg_pg_type5(struct dm_struct *dm);
+u32 odm_get_version_mp_8822e_phy_reg_pg_type5(void);
+
 #endif
 #endif /* end of HWIMG_SUPPORT*/
 

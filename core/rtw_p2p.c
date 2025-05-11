@@ -3254,6 +3254,13 @@ static bool rtw_chk_p2pie_ch_list_with_buddy(_adapter *padapter, const u8 *frame
 	u8 *ies, *p2p_ie;
 	u32 ies_len, p2p_ielen;
 	u8 union_ch = rtw_mi_get_union_chan(padapter);
+	
+#ifdef CONFIG_MCC_MODE
+	if (MCC_EN(padapter)) {
+		fit = _TRUE;
+		return fit;
+	}
+#endif /* CONFIG_MCC_MODE */
 
 	ies = (u8 *)(frame_body + _PUBLIC_ACTION_IE_OFFSET_);
 	ies_len = len - _PUBLIC_ACTION_IE_OFFSET_;
@@ -4242,6 +4249,8 @@ void p2p_ps_wk_hdl(_adapter *padapter, u8 p2p_ps_state)
 			return;
 		}
 		if (pwdinfo->p2p_ps_mode > P2P_PS_NONE) {
+/*	do not need thise warning message due to FW already handle this case*/
+#if 0
 #ifdef CONFIG_MCC_MODE
 			if (MCC_EN(padapter)) {
 				if (rtw_hal_check_mcc_status(padapter, MCC_STATUS_DOING_MCC)) {
@@ -4251,6 +4260,7 @@ void p2p_ps_wk_hdl(_adapter *padapter, u8 p2p_ps_state)
 
 			}
 #endif /* CONFIG_MCC_MODE */
+#endif
 			pwdinfo->p2p_ps_state = p2p_ps_state;
 
 #ifdef CONFIG_LPS

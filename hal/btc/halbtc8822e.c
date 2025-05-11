@@ -177,14 +177,30 @@ static const struct btc_rf_para rf_para_tx_8822e[] = {
 				{15, 5, TRUE, 4},
 				{7, 8, TRUE, 4},
 				{6, 10, TRUE, 4},
-				{16, 4, TRUE, 4}, /* 18 for A2DP+RCU SDR */
+				{7, 8, TRUE, 4}, /* 18 for PAN/OPP SDR */
+				{6, 10, TRUE, 4},
+				{5, 14, TRUE, 4},
+				{5, 14, TRUE, 4},
+				{7, 8, TRUE, 4}, /* 22 for PAN/OPP OFC */
+				{6, 10, TRUE, 4},
+				{5, 14, TRUE, 4},
+				{5, 14, TRUE, 4},
+				{16, 4, TRUE, 4}, /* 26 for A2DP+RCU SDR */
 				{15, 5, TRUE, 4},
 				{7, 8, TRUE, 4},
 				{6, 10, TRUE, 4},
-				{16, 4, TRUE, 4}, /* 22 for A2DP+RCU OFC */
+				{16, 4, TRUE, 4}, /* 30 for A2DP+RCU OFC */
 				{15, 5, TRUE, 4},
 				{7, 8, TRUE, 4},
-				{6, 10, TRUE, 4} };
+				{6, 10, TRUE, 4},
+				{7, 8, TRUE, 4}, /* 34 for A2DP+PAN/OPP SDR */
+				{6, 10, TRUE, 4},
+				{5, 14, TRUE, 4},
+				{5, 14, TRUE, 4},
+				{7, 8, TRUE, 4}, /* 38 for A2DP+PAN/OPP OFC */
+				{6, 10, TRUE, 4},
+				{5, 14, TRUE, 4},
+				{5, 14, TRUE, 4} };
 
 static const struct btc_rf_para rf_para_rx_8822e[] = {
 				{0, 0, FALSE, 7},  /* for normal */
@@ -205,21 +221,37 @@ static const struct btc_rf_para rf_para_rx_8822e[] = {
 				{15, 5, TRUE, 5},
 				{7, 8, TRUE, 5},
 				{6, 10, TRUE, 5},
-				{16, 4, TRUE, 5}, /* 18 for A2DP+RCU SDR */
+				{6, 9, TRUE, 5}, /* 18 for PAN/OPP SDR */
+				{4, 11, TRUE, 5},
+				{5, 14, TRUE, 5},
+				{5, 14, TRUE, 5},
+				{6, 9, TRUE, 5}, /* 22 for PAN/OPP OFC */
+				{4, 11, TRUE, 5},
+				{5, 14, TRUE, 5},
+				{5, 14, TRUE, 5},
+				{16, 4, TRUE, 5}, /* 26 for A2DP+RCU SDR */
 				{15, 5, TRUE, 5},
 				{7, 8, TRUE, 5},
 				{6, 10, TRUE, 5},
-				{16, 4, TRUE, 5}, /* 22 for A2DP+RCU OFC */
+				{16, 4, TRUE, 5}, /* 30 for A2DP+RCU OFC */
 				{15, 5, TRUE, 5},
 				{7, 8, TRUE, 5},
-				{6, 10, TRUE, 5} };
+				{6, 10, TRUE, 5},
+				{6, 9, TRUE, 5}, /* 34 for A2DP+PAN/OPP SDR */
+				{4, 11, TRUE, 5},
+				{5, 14, TRUE, 5},
+				{5, 14, TRUE, 5},
+				{6, 9, TRUE, 5}, /* 38 for A2DP+PAN/OPP OFC */
+				{4, 11, TRUE, 5},
+				{5, 14, TRUE, 5},
+				{5, 14, TRUE, 5} };
 
 const struct btc_5g_afh_map afh_5g_8822e[] = { {0, 0, 0} };
 
 const struct btc_chip_para btc_chip_para_8822e = {
 	"8822e",				/*.chip_name */
-	20230616,				/*.para_ver_date */
-	0x0a,					/*.para_ver */
+	20240913,				/*.para_ver_date */
+	0x0e,					/*.para_ver */
 	0x0a,					/* bt_desired_ver */
 	0x10012,				/* wl_desired_ver */
 	TRUE,					/* scbd_support */
@@ -1052,6 +1084,13 @@ void halbtc8822e_set_wl_lna2(struct btc_coexist *btc, u8 level)
 	u32 i;
 	u64 start_time = 0, process_time = 0;
 
+	/* COEX-884: Fix wifi abnormal RSSI due to BB using LNA6 when level = 1 */
+	if (btc->board_info.btdm_ant_num == 1 &&
+	    BTC_RSSI_HIGH(coex_dm->wl_rssi_state[0])) { /* Shared-Ant */
+		level = 0;
+		coex_dm->lna2_level = level;
+	}
+
 	/* level=0 TIA 3/2, level=1: TIA 1/0
 	 * TIA3 = LNA2(0db)+TIA(28db) = 28 db,  TIA2 = LNA2(0db)+TIA(10db) = 10db
 	 * TIA1 = LNA2(-8db)+TIA(28db) = 20 db TIA0 = LNA2(-8db)+TIA(10db) = 2db
@@ -1078,7 +1117,7 @@ void halbtc8822e_set_wl_lna2(struct btc_coexist *btc, u8 level)
 		BTC_TRACE(trace_buf);
 
 		/* BB set gain table according to BT idle */
-		btc->btc_phydm_set_agc_table(btc, FALSE);
+		btc->btc_phydm_set_agc_table(btc, FALSE, 0);
 
 		BTC_SPRINTF(trace_buf, BT_TMP_BUF_SIZE,
 			    "[BTCoex], lna2 setting for BT idle!!\n");
@@ -1104,7 +1143,7 @@ void halbtc8822e_set_wl_lna2(struct btc_coexist *btc, u8 level)
 		BTC_TRACE(trace_buf);
 
 		/* BB set gain table according to BT connect */
-		btc->btc_phydm_set_agc_table(btc, TRUE);
+		btc->btc_phydm_set_agc_table(btc, TRUE, 6);
 
 		BTC_SPRINTF(trace_buf, BT_TMP_BUF_SIZE,
 			    "[BTCoex], lna2 setting for BT connect!!\n");
@@ -1248,3 +1287,4 @@ void halbtc8822e_chip_setup(struct btc_coexist *btc, u8 type)
 	}
 }
 #endif
+

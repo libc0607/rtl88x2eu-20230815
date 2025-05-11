@@ -67,6 +67,16 @@
 #endif
 
 /*@---------------------------End Define Parameters---------------------------*/
+struct dpk_bkup_para {
+	enum odm_band_type	band;		/* 2.4G,5G,6G*/
+	enum channel_width	bw;
+	u8	ch;
+	u8	path_ok;
+	u8	txagc_dpk;		/*txagc@dpk with path*/	
+	u8	ther_dpk;		/*thermal@dpk with path*/	
+	u8	gs;
+	u16	pwsf;
+};
 
 struct dm_dpk_info {
 
@@ -93,7 +103,7 @@ struct dm_dpk_info {
 	u32	dpk_ok_cnt;
 	u32	dpk_reload_cnt;
 	u8	txagc_k[KPATH];		/*txagc@dpk with path*/
-
+	struct dpk_bkup_para bp[KPATH][2];	/*path/index*/
 #if (RTL8822C_SUPPORT == 1 || RTL8812F_SUPPORT == 1 || RTL8197G_SUPPORT == 1 || RTL8735B_SUPPORT == 1 || \
 	RTL8822E_SUPPORT == 1)
 	u16	dc_i[2];			/*MDPD DC I path*/

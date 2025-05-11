@@ -272,6 +272,7 @@ enum halrf_CMD_ID {
 	HALRF_TSSI,
 	HALRF_RX_SPURK,
 	HALRF_POWER_TRACKING,
+	HALRF_DZ_DBG,
 };
 
 struct halrf_command halrf_cmd_ary[] = {
@@ -296,6 +297,7 @@ struct halrf_command halrf_cmd_ary[] = {
 	{"tssi", HALRF_TSSI},
 	{"rxspurk", HALRF_RX_SPURK},
 	{"pwr_trk", HALRF_POWER_TRACKING},
+	{"dz_dbg",HALRF_DZ_DBG},
 };
 
 void halrf_cmd_parser(void *dm_void, char input[][16], u32 *_used, char *output,
@@ -311,6 +313,7 @@ void halrf_cmd_parser(void *dm_void, char input[][16], u32 *_used, char *output,
 	u32 used = *_used;
 	u32 out_len = *_out_len;
 
+	input[input_num-1][strlen(input[input_num-1]) - 1] = '\0';
 	/* Parsing Cmd ID */
 	for (i = 0; i < halrf_ary_size; i++) {
 		if (strcmp(halrf_cmd_ary[i].name, input[1]) == 0) {
@@ -417,6 +420,11 @@ void halrf_cmd_parser(void *dm_void, char input[][16], u32 *_used, char *output,
 	case HALRF_POWER_TRACKING:
 		halrf_pwr_trk_debug_cmd(dm, input, &used, output, &out_len);
 		break;
+	case HALRF_DZ_DBG:
+#ifdef  HALRF_DZ_LOG
+		halrf_dz_dbg_cmd(dm, input, &used, output, &out_len);
+#endif
+		break;
 	default:
 		break;
 	}
@@ -448,6 +456,10 @@ void halrf_init_debug_setting(void *dm_void)
 	/*DBG_RF_TMP		| */
 	/*DBG_RF_INIT		| */
 	/*DBG_RF_RXSPURK	| */
+	/*DBG_RF_PABIAS_TRACK	| */
+#ifdef  HALRF_DZ_LOG
+	DBG_RF_DZ_LOG		|
+#endif
 #endif
 #endif
 	0;

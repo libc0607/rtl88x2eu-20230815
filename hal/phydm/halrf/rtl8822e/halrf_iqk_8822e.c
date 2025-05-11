@@ -1349,6 +1349,11 @@ boolean _iqk_2g_rx_gain_search1_8822e(struct dm_struct *dm, u8 path, boolean for
 __odm_func_aon__
 void _iqk_5g_rxk_iqk_8822e(struct dm_struct *dm, u8 path)
 {
+#ifdef HALRF_DZ_LOG	
+		struct _hal_rf_ *rf = &(dm->rf_table);	
+		struct halrf_rfk_dz_rpt *rfk_dz = &(rf->rfk_dz_rpt);
+#endif
+
 	struct dm_iqk_info *iqk_info = &dm->IQK_info;
 	boolean kfail = false;
 	
@@ -1389,6 +1394,10 @@ void _iqk_5g_rxk_iqk_8822e(struct dm_struct *dm, u8 path)
 		iqk_info->fail_step |= BIT(3);
 		odm_set_bb_reg(dm, 0x1b70, BIT(0), 0x0);
 		RF_DBG(dm, DBG_RF_IQK, "[IQK]S%x, 5G RXK Fail \n", path);
+#ifdef HALRF_DZ_LOG
+		rfk_dz->iqk_dz_code |= BIT(1 * path);
+#endif
+
 	}
 
 }
@@ -1396,6 +1405,10 @@ void _iqk_5g_rxk_iqk_8822e(struct dm_struct *dm, u8 path)
 __odm_func_aon__
 void _iqk_2g_rxk_iqk_8822e(struct dm_struct *dm, u8 path)
 {
+#ifdef  HALRF_DZ_LOG	
+		struct _hal_rf_ *rf = &(dm->rf_table);	
+		struct halrf_rfk_dz_rpt *rfk_dz = &(rf->rfk_dz_rpt);
+#endif
 	struct dm_iqk_info *iqk_info = &dm->IQK_info;
 	boolean kfail = false;
 	
@@ -1438,6 +1451,9 @@ void _iqk_2g_rxk_iqk_8822e(struct dm_struct *dm, u8 path)
 		iqk_info->fail_step |= BIT(3);
 		odm_set_bb_reg(dm, 0x1b70, BIT(0), 0x0);
 		RF_DBG(dm, DBG_RF_IQK, "[IQK]S%x, 2G RXK Fail \n", path);
+#ifdef HALRF_DZ_LOG
+		rfk_dz->iqk_dz_code |= BIT(1 * path);
+#endif
 	}
 
 }
@@ -1447,6 +1463,11 @@ void _iqk_iqk_by_path_8822e(
 	struct dm_struct *dm,
 	boolean segment_iqk)
 {
+#ifdef  HALRF_DZ_LOG	
+		struct _hal_rf_ *rf = &(dm->rf_table);	
+		struct halrf_rfk_dz_rpt *rfk_dz = &(rf->rfk_dz_rpt);
+#endif
+
 	struct dm_iqk_info *iqk_info = &dm->IQK_info;
 	u8 path = 0x0;	
 	boolean txkfail = false;
@@ -1488,6 +1509,11 @@ void _iqk_iqk_by_path_8822e(
 			_iqk_5g_rxk_iqk_8822e(dm, path);
 		}
 	}
+		if(txkfail) {
+#ifdef  HALRF_DZ_LOG
+			rfk_dz->iqk_dz_code |= BIT(0 * path);
+#endif
+		}
 	}
 #if 1
 	for(path = 0x0; path < SS_8822E; path++) {

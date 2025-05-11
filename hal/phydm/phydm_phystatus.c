@@ -249,6 +249,10 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			/*SNR & RSSI*/
 			dbg_s->snr_ofdm_sum[i] += snr[i];
 			dbg_s->rssi_ofdm_sum[i] += rssi[i];
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->snr_per_path_sum[i] += snr[i];
+			dbg_s->snr_per_path_cnt[i]++;
+			#endif
 		}
 		/*@evm*/
 		dbg_s->evm_ofdm_sum += evm[0];
@@ -268,6 +272,10 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			/*SNR & RSSI*/
 			dbg_s->snr_1ss_sum[i] += snr[i];
 			dbg_s->rssi_1ss_sum[i] += rssi[i];
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->snr_per_path_sum[i] += snr[i];
+			dbg_s->snr_per_path_cnt[i]++;
+			#endif
 		}
 
 		/*@evm*/
@@ -276,6 +284,10 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 		val = (u16)evm[0];
 		intvl = phydm_find_intrvl(dm, val, dbg_i->evm_hist_th, size_th);
 		dbg_s->evm_1ss_hist[intvl]++;
+		
+		#ifdef PHYDM_AUTO_DEGBUG
+		dbg_s->evm_ss_sum[0] +=evm[0];
+		#endif
 
 		/*SNR Histogram*/
 		val = (u16)snr[0];
@@ -283,6 +295,11 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 		dbg_s->snr_1ss_hist[intvl]++;
 
 		dbg_s->rssi_1ss_cnt++;
+		
+		#ifdef PHYDM_AUTO_DEGBUG
+		dbg_s->pkt_cnt_t++;
+		#endif
+		
 	} else if (pktinfo->rate_ss == 2) {
 /*@===[2-SS]==================================================================*/
 		#if (defined(PHYDM_COMPILE_ABOVE_2SS))
@@ -290,11 +307,20 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			/*SNR & RSSI*/
 			dbg_s->snr_2ss_sum[i] += snr[i];
 			dbg_s->rssi_2ss_sum[i] += rssi[i];
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->snr_per_path_sum[i] += snr[i];
+			dbg_s->snr_per_path_cnt[i]++;
+			#endif
 		}
 
 		for (i = 0; i < pktinfo->rate_ss; i++) {
 			/*@evm*/
 			dbg_s->evm_2ss_sum[i] += evm[i];
+			
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->evm_ss_sum[i] += evm[i];
+			#endif
+			
 			/*@EVM Histogram*/
 			val = (u16)evm[i];
 			intvl = phydm_find_intrvl(dm, val, dbg_i->evm_hist_th,
@@ -308,6 +334,11 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			dbg_s->snr_2ss_hist[i][intvl]++;
 		}
 		dbg_s->rssi_2ss_cnt++;
+		
+		#ifdef PHYDM_AUTO_DEGBUG
+		dbg_s->pkt_cnt_t++;
+		#endif
+		
 		#endif
 	} else if (pktinfo->rate_ss == 3) {
 /*@===[3-SS]==================================================================*/
@@ -316,11 +347,20 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			/*SNR & RSSI*/
 			dbg_s->snr_3ss_sum[i] += snr[i];
 			dbg_s->rssi_3ss_sum[i] += rssi[i];
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->snr_per_path_sum[i] += snr[i];
+			dbg_s->snr_per_path_cnt[i]++;
+			#endif
 		}
 
 		for (i = 0; i < pktinfo->rate_ss; i++) {
 			/*@evm*/
 			dbg_s->evm_3ss_sum[i] += evm[i];
+			
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->evm_ss_sum[i] += evm[i];
+			#endif
+			
 			/*@EVM Histogram*/
 			val = (u16)evm[i];
 			intvl = phydm_find_intrvl(dm, val, dbg_i->evm_hist_th,
@@ -334,6 +374,11 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			dbg_s->snr_3ss_hist[i][intvl]++;
 		}
 		dbg_s->rssi_3ss_cnt++;
+		
+		#ifdef PHYDM_AUTO_DEGBUG
+		dbg_s->pkt_cnt_t++;
+		#endif
+		
 		#endif
 	} else if (pktinfo->rate_ss == 4) {
 /*@===[4-SS]==================================================================*/
@@ -342,12 +387,20 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			/*SNR & RSSI*/
 			dbg_s->snr_4ss_sum[i] += snr[i];
 			dbg_s->rssi_4ss_sum[i] += rssi[i];
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->snr_per_path_sum[i] += snr[i];
+			dbg_s->snr_per_path_cnt[i]++;
+			#endif
 		}
 
 		for (i = 0; i < pktinfo->rate_ss; i++) {
 			/*@evm*/
 			dbg_s->evm_4ss_sum[i] += evm[i];
-
+			
+			#ifdef PHYDM_AUTO_DEGBUG
+			dbg_s->evm_ss_sum[i] += evm[i];
+			#endif
+			
 			/*@EVM Histogram*/
 			val = (u16)evm[i];
 			intvl = phydm_find_intrvl(dm, val, dbg_i->evm_hist_th,
@@ -361,6 +414,11 @@ void phydm_avg_rssi_evm_snr(void *dm_void,
 			dbg_s->snr_4ss_hist[i][intvl]++;
 		}
 		dbg_s->rssi_4ss_cnt++;
+		
+		#ifdef PHYDM_AUTO_DEGBUG
+		dbg_s->pkt_cnt_t++;
+		#endif
+		
 		#endif
 	}
 }
@@ -1967,6 +2025,7 @@ void phydm_get_physts_0_jgr3(struct dm_struct *dm, u8 *phy_status_inf,
 	/* type 0 is used for cck packet */
 	struct phy_sts_rpt_jgr3_type0 *phy_sts = NULL;
 	struct odm_phy_dbg_info *dbg_i = &dm->phy_dbg_info;
+	struct phydm_physts *physts_table = &dm->dm_physts_table;
 	u8 sq = 0, i, rx_cnt = 0;
 	s8 rx_power[4], pwdb;
 	s8 rx_pwr_db_max = -120;
@@ -1994,7 +2053,6 @@ void phydm_get_physts_0_jgr3(struct dm_struct *dm, u8 *phy_status_inf,
 	if (dm->support_ic_type &
             (ODM_RTL8822C | ODM_RTL8197G | ODM_RTL8814B | ODM_RTL8814C |\
              ODM_RTL8822E)) {
-		struct phydm_physts *physts_table = &dm->dm_physts_table;
 		if (phy_sts->gain_a < physts_table->cck_gi_l_bnd)
 			rx_power[0] += ((physts_table->cck_gi_l_bnd -
 					phy_sts->gain_a) << 1);
@@ -2011,7 +2069,6 @@ void phydm_get_physts_0_jgr3(struct dm_struct *dm, u8 *phy_status_inf,
 	}
 	if (dm->support_ic_type &
             (ODM_RTL8814B | ODM_RTL8814C)) {
-		struct phydm_physts *physts_table = &dm->dm_physts_table;
 		if (phy_sts->gain_c < physts_table->cck_gi_l_bnd)
 			rx_power[2] += ((physts_table->cck_gi_l_bnd -
 					phy_sts->gain_c) << 1);
@@ -2330,6 +2387,7 @@ void phydm_get_physts_ofdm_cmn_jgr3(struct dm_struct *dm, u8 *phy_status_inf,
 	dbg_i->is_ldpc_pkt = phy_sts->ldpc;
 	dbg_i->is_stbc_pkt = phy_sts->stbc;
 	dbg_i->num_qry_bf_pkt += phy_sts->beamformed;
+	dbg_i->band_idx = phy_sts->band;
 }
 
 void phydm_process_dm_rssi_jgr3(struct dm_struct *dm,
@@ -3152,9 +3210,16 @@ boolean odm_phy_status_query(struct dm_struct *dm,
 	struct pkt_process_info *pkt_proc = &dm->pkt_proc_struct;
 	boolean auto_swch_en = dm->pkt_proc_struct.physts_auto_swch_en;
 #endif
+	struct odm_phy_dbg_info *dbg_i = &dm->phy_dbg_info;
+	struct phydm_phystatus_avg *dbg_avg = &dbg_i->phystatus_statistic_avg;
 	u8 rate = pktinfo->data_rate;
 	u8 page = (*phy_sts & 0xf);
 	u8 i = 0;
+	#if (RTL8822E_SUPPORT)
+	u8 rssi_tmp = 0, rssi_diff[2] = {0, 0};
+	//u8 mcs_rssi[16] = {12, 14, 18, 21, 25, 28, 31, 34, 12, 14, 18, 21, 25, 28, 31, 34};
+	u8 mcs_rssi[16] = {7, 9, 12, 15, 19, 21, 22, 25, 7, 9, 12, 15, 19, 21, 22, 25};
+	#endif
 
 	pktinfo->is_cck_rate = PHYDM_IS_CCK_RATE(rate);
 	pktinfo->rate_ss = phydm_rate_to_num_ss(dm, rate);
@@ -3188,6 +3253,44 @@ boolean odm_phy_status_query(struct dm_struct *dm,
 						return false;
 					}
 				}
+			}
+		}
+		#endif
+		#if (RTL8822E_SUPPORT)
+		if (dm->support_ic_type & (ODM_RTL8822E)) {
+			if (dbg_avg->rssi_beacon_avg[0] >= dbg_avg->rssi_beacon_avg[1]) {
+				rssi_diff[0] = dbg_avg->rssi_beacon_avg[0] - dbg_avg->rssi_beacon_avg[1];
+			} else {
+				rssi_diff[1] = dbg_avg->rssi_beacon_avg[1] - dbg_avg->rssi_beacon_avg[0];
+			}
+			if ((!pktinfo->is_cck_rate) && (dm->bt_is_linked) && (dbg_i->band_idx == 0) && (rate <= ODM_RATEMCS15) && (dm->btc_rssi_processing)) {
+				for (i = RF_PATH_A; i < dm->num_rf_path; i++) {
+					if (phy_info->rx_mimo_signal_strength[i] <= 42) {
+						rssi_tmp = phy_info->rx_mimo_signal_strength[i];
+						if (dm->btc_mcs_rssi_en) {
+							if ((rssi_tmp >= mcs_rssi[rate - ODM_RATEMCS0 + 1]) || (rssi_tmp < mcs_rssi[rate - ODM_RATEMCS0])) {
+								phy_info->rx_mimo_signal_strength[i] = mcs_rssi[rate - ODM_RATEMCS0];
+								PHYDM_DBG(dm, DBG_RSSI_MNTR, "MCS check rate[0x%x] : rssi{origin, new} = {%d, %d}\n", rate, rssi_tmp, mcs_rssi[rate - ODM_RATEMCS0]);
+							}
+						}
+						if (phy_info->rx_mimo_signal_strength[i] > dbg_avg->rssi_beacon_avg[i]) {
+							rssi_tmp = phy_info->rx_mimo_signal_strength[i];
+							phy_info->rx_mimo_signal_strength[i] = dbg_avg->rssi_beacon_avg[i];
+							PHYDM_DBG(dm, DBG_RSSI_MNTR, "Data rssi > Beacon rssi, rate[0x%x] : rssi{origin, new} = {%d, %d}\n", rate, rssi_tmp, phy_info->rx_mimo_signal_strength[i]);
+						}
+						if (dbg_avg->rssi_beacon_avg[i] >= dm->bt_cck_rssi_th) {
+							rssi_tmp = phy_info->rx_mimo_signal_strength[i];
+							phy_info->rx_mimo_signal_strength[i] = dbg_avg->rssi_beacon_avg[i] - 14;
+							PHYDM_DBG(dm, DBG_RSSI_MNTR, "Beacon rssi >= %d, rate[0x%x] : rssi{origin, new} = {%d, %d}\n", dm->bt_cck_rssi_th, rate, rssi_tmp, phy_info->rx_mimo_signal_strength[i]);
+						}
+					}
+				}
+			}
+			if (phy_info->rx_mimo_signal_strength[0] == phy_info->rx_mimo_signal_strength[1]) {
+				if (rssi_diff[0] != 0)
+					phy_info->rx_mimo_signal_strength[0] += rssi_diff[0];
+				else if (rssi_diff[1] != 0)
+					phy_info->rx_mimo_signal_strength[1] += rssi_diff[1];
 			}
 		}
 		#endif
@@ -3258,6 +3361,12 @@ void phydm_rx_phy_status_init(void *dm_void)
 	dbg->show_phy_sts_max_cnt = 1;
 	dbg->show_phy_sts_cnt = 0;
 
+	#if (RTL8822E_SUPPORT)
+	dm->btc_rssi_processing = true;
+	dm->btc_mcs_rssi_en = false;
+	dm->bt_cck_rssi_th = 35;
+	#endif
+
 	phydm_avg_phystatus_init(dm);
 
 	#ifdef PHYDM_PHYSTAUS_AUTO_SWITCH
@@ -3283,6 +3392,12 @@ void phydm_physts_dbg(void *dm_void, char input[][16], u32 *_used,
 	if ((strcmp(input[1], help) == 0)) {
 		PDM_SNPF(out_len, used, output + used, out_len - used,
 			 "Page Auto Switching: swh {en} {bitmap(hex)}\n");
+		PDM_SNPF(out_len, used, output + used, out_len - used,
+			 "BT is linked : bt_en {en}\n");
+		PDM_SNPF(out_len, used, output + used, out_len - used,
+			 "BT rssi by mcs rate : btc_mcs_rssi_en {en}\n");
+		PDM_SNPF(out_len, used, output + used, out_len - used,
+			 "BT rssi sw processing : btc_rssi_en {en} {cck_rssi_th}\n");
 	} else if ((strcmp(input[1], "swh") == 0)) {
 		#ifdef PHYDM_PHYSTAUS_AUTO_SWITCH
 		PHYDM_SSCANF(input[3], DCMD_HEX, &var[2]);
@@ -3292,6 +3407,32 @@ void phydm_physts_dbg(void *dm_void, char input[][16], u32 *_used,
 		PDM_SNPF(out_len, used, output + used, out_len - used,
 			 "Page Auto Switching: en=%d, bitmap=0x%x\n",
 			 enable, var[2]);
+		#endif
+	} else if ((strcmp(input[1], "bt_en") == 0)) {
+		PHYDM_SSCANF(input[3], DCMD_DECIMAL, &var[2]);
+		#if (RTL8822E_SUPPORT)
+		phydm_set_agc_table_8822e(dm, (boolean)var[1], (u8)var[2]);
+		PDM_SNPF(out_len, used, output + used, out_len - used, "bt_is_linked = %d, agc table idx = %d\n",
+			     dm->bt_is_linked, dm->bt_iso_tbl_idx);
+		#endif
+		#if (RTL8822C_SUPPORT)
+		phydm_set_agc_table_8822c(dm, (boolean)var[1], (u8)var[2]);
+		PDM_SNPF(out_len, used, output + used, out_len - used, "bt_is_linked = %d, agc table idx = %d\n",
+			     dm->bt_is_linked, dm->bt_iso_tbl_idx);
+		#endif
+	} else if ((strcmp(input[1], "btc_mcs_rssi_en") == 0)) {
+		#if (RTL8822E_SUPPORT)
+		dm->btc_mcs_rssi_en = (boolean)var[1];
+		PDM_SNPF(out_len, used, output + used, out_len - used, "btc_mcs_rssi_en = %d\n",
+			     dm->btc_mcs_rssi_en);
+		#endif
+	} else if ((strcmp(input[1], "btc_rssi_en") == 0)) {
+		#if (RTL8822E_SUPPORT)
+		PHYDM_SSCANF(input[3], DCMD_DECIMAL, &var[2]);
+		dm->btc_rssi_processing = (boolean)var[1];
+		dm->bt_cck_rssi_th = (u8)var[2];
+		PDM_SNPF(out_len, used, output + used, out_len - used, "btc_rssi_processing = %d, bt_cck_rssi_th = %d\n",
+			     dm->btc_rssi_processing, dm->bt_cck_rssi_th);
 		#endif
 	}
 	*_used = used;

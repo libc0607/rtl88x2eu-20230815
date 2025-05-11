@@ -1049,9 +1049,9 @@ int rtw_mp_ctx(struct net_device *dev,
 	       struct iw_point *wrqu, char *extra)
 {
 	u32 pkTx = 1;
-	int countPkTx = 1, cotuTx = 1, CarrSprTx = 1, scTx = 1, sgleTx = 1, stop = 1, payload = 1;
+	int countPkTx = 1, cotuTx = 1, CarrSprTx = 1, scTx = 1, sgleTx = 1, stop = 1, payload = 1 ,blimitpktval = 1;
 	u32 bStartTest = 1;
-	u32 count = 0, pktinterval = 0, pktlen = 0;
+	u32 count = 0, pktinterval = 0, pktlen = 0, limitpktval = 0;
 	u8 status;
 	struct mp_priv *pmp_priv;
 	struct pkt_attrib *pattrib;
@@ -1087,6 +1087,7 @@ int rtw_mp_ctx(struct net_device *dev,
 	pkTx = strncmp(extra, "background,pkt", 20);
 	stop = strncmp(extra, "stop", 4);
 	payload = strncmp(extra, "payload=", 8);
+	blimitpktval = strncmp(extra, "lmtpktval=", 8);
 
 	if (sscanf(extra, "count=%d,pkt", &count) > 0)
 		RTW_INFO("count= %d\n", count);
@@ -1094,6 +1095,8 @@ int rtw_mp_ctx(struct net_device *dev,
 		RTW_INFO("pktinterval= %d\n", pktinterval);
 	if (sscanf(extra, "pktlen=%d", &pktlen) > 0)
 		RTW_INFO("pktlen= %d\n", pktlen);
+	if (sscanf(extra, "lmtpktval=%d", &limitpktval) > 0)
+			RTW_INFO("limitpktval= %d\n", limitpktval);
 
 	if (payload == 0) {
 			payload = MP_TX_Payload_default_random;
@@ -1124,8 +1127,14 @@ int rtw_mp_ctx(struct net_device *dev,
 	_rtw_memset(extra, '\0', strlen(extra));
 
 	if (pktinterval != 0) {
+		if(IS_HARDWARE_TYPE_8822E(padapter)) {
+			if (pmp_priv->blim_pkt_intvl && pktinterval < 2000) {
+				pktinterval = 2000;
+				RTW_INFO("limited interval = %d\n", pktinterval);
+			}
+		}
+		pmp_priv->pktInterval = pktinterval;
 		snprintf(extra, RTW_EXTRA_MAX_LEN, "Pkt Interval = %d", pktinterval);
-		padapter->mppriv.pktInterval = pktinterval;
 		wrqu->length = strlen(extra);
 		return 0;
 
@@ -1154,6 +1163,9 @@ int rtw_mp_ctx(struct net_device *dev,
 				rtw_msleep_os(10);
 			}
 		} while (i < 1000);
+	} else if (blimitpktval == 0) {
+		pmp_priv->blim_pkt_intvl = limitpktval;
+		RTW_INFO("%s:set limit pkt interval %d!!\n", __func__, limitpktval);
 	} else {
 		bStartTest = 1;
 		odm_write_dig(&pHalData->odmpriv, 0x3f);
@@ -2468,9 +2480,16 @@ int rtw_mp_tx(struct net_device *dev,
 			pMptCtx->PMacTxInfo.Mode = pMptCtx->HWTxmode;
 
 			pMptCtx->PMacTxInfo.NDP_sound = FALSE;/*(Adapter.PacketType == NDP_PKT)?TRUE:FALSE;*/
+			
+			if (IS_HARDWARE_TYPE_8822E(padapter)) {
+				if (padapter->mppriv.blim_pkt_intvl && padapter->mppriv.pktInterval < 2000) {
+					padapter->mppriv.pktInterval = 2000;
+					RTW_INFO("limited interval = %d\n", padapter->mppriv.pktInterval);
+				}
+			}
 
 			if (padapter->mppriv.pktInterval == 0)
-				pMptCtx->PMacTxInfo.PacketPeriod = 100;
+				pMptCtx->PMacTxInfo.PacketPeriod = 2000;
 			else
 				pMptCtx->PMacTxInfo.PacketPeriod = padapter->mppriv.pktInterval;
 

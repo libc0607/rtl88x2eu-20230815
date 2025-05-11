@@ -33,10 +33,15 @@ void rtl8822e_init_hal_spec(PADAPTER adapter)
 	/* hal_spec->sec_cam_ent_num follow halmac setting */
 	hal_spec->sec_cap = SEC_CAP_CHK_BMC | SEC_CAP_CHK_EXTRA_SEC;
 #ifdef CONFIG_USB_HCI
-	hal_spec->wow_cap = WOW_CAP_TKIP_OL/* | WOW_CAP_CSA*/ | WOW_CAP_DIS_INBAND_SIGNAL;
+	hal_spec->wow_cap = WOW_CAP_TKIP_OL/* | WOW_CAP_CSA*/ | WOW_CAP_DIS_INBAND_SIGNAL | WOW_CAP_WPA3_SAE;
 #else
-	hal_spec->wow_cap = WOW_CAP_TKIP_OL/* | WOW_CAP_CSA*/;
+	hal_spec->wow_cap = WOW_CAP_TKIP_OL/* | WOW_CAP_CSA*/ | WOW_CAP_WPA3_SAE;;
 #endif
+
+#ifdef CONFIG_MDNS_OFFLOAD
+	hal_spec->wow_cap = hal_spec->wow_cap | WOW_CAP_MDNS;
+#endif
+
 	hal_spec->macid_cap = MACID_DROP;
 
 	hal_spec->rfpath_num_2g = 2;
@@ -231,10 +236,11 @@ u8 rtl8822e_mac_verify(PADAPTER adapter)
 
 static void _efem_pinmux_config(PADAPTER adapter)
 {
-		PHAL_DATA_TYPE hal = GET_HAL_DATA(adapter);
+	PHAL_DATA_TYPE hal = GET_HAL_DATA(adapter);
 
-	if (hal->rfe_type == 21 || hal->rfe_type == 22) {
-		RTW_INFO("RFE type = 0x21 or 0x22, change pinmux\n");
+	if (hal->rfe_type == 21 || hal->rfe_type == 22 ||
+		hal->rfe_type == 23 || hal->rfe_type == 24) {
+		RTW_INFO("RFE type = %d, change pinmux\n", hal->rfe_type);
 		rtw_halmac_rfe_ctrl_cfg(adapter_to_dvobj(adapter), 28);
 		rtw_halmac_rfe_ctrl_cfg(adapter_to_dvobj(adapter), 29);
 		rtw_halmac_rfe_ctrl_cfg(adapter_to_dvobj(adapter), 30);

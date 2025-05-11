@@ -367,7 +367,7 @@ struct get_chplan_resp {
 #endif
 	u8 proto_en;
 	u8 chs_len;
-	RT_CHANNEL_INFO chs[0];
+	RT_CHANNEL_INFO chs[];
 };
 
 struct get_channel_plan_param {

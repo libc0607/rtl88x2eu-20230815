@@ -2271,7 +2271,7 @@ int rtw_os_ndev_register(_adapter *adapter, const char *name)
 
 #ifdef CONFIG_RTW_NAPI
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
-	netif_napi_add_weight(ndev, &adapter->napi, rtw_recv_napi_poll, RTL_NAPI_WEIGHT);
+	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll);
 #else
 	netif_napi_add(ndev, &adapter->napi, rtw_recv_napi_poll, RTL_NAPI_WEIGHT);
 #endif
@@ -2957,8 +2957,9 @@ u8 rtw_reset_drv_sw(_adapter *padapter)
 	/* mlmeextpriv */
 	mlmeext_set_scan_state(&padapter->mlmeextpriv, SCAN_DISABLE);
 
-#ifdef CONFIG_NEW_SIGNAL_STAT_PROCESS
-	rtw_set_signal_stat_timer(&padapter->recvpriv);
+#ifdef CONFIG_NEW_SIGNAL_STAT_PROCESSf
+	if (padapter->netif_up == _TRUE)
+		rtw_set_signal_stat_timer(&padapter->recvpriv);
 #endif
 
 	return ret8;
@@ -4107,7 +4108,9 @@ int _netdev_open(struct net_device *pnetdev)
 		padapter->netif_up = _TRUE;
 		pwrctrlpriv->bips_processing = _FALSE;
 	}
-
+#ifdef CONFIG_NEW_SIGNAL_STAT_PROCESS
+	rtw_set_signal_stat_timer(&padapter->recvpriv);
+#endif
 	RTW_INFO(FUNC_NDEV_FMT" Success (bup=%d)\n", FUNC_NDEV_ARG(pnetdev), padapter->bup);
 	return 0;
 
@@ -4249,6 +4252,10 @@ int _netdev_open(struct net_device *pnetdev)
 	pwrctrlpriv->tx_time = 0;
 	pwrctrlpriv->rx_time = 0;
 #endif /* CONFIG_RTW_CFGVEDNOR_LLSTATS */
+
+#ifdef CONFIG_NEW_SIGNAL_STAT_PROCESS
+	rtw_set_signal_stat_timer(&padapter->recvpriv);
+#endif
 
 	RTW_INFO("-871x_drv - drv_open, bup=%d\n", padapter->bup);
 
@@ -5240,7 +5247,8 @@ int rtw_suspend_wow(_adapter *padapter)
 #ifdef CONFIG_LPS
 	else {
 		if(pwrpriv->wowlan_power_mgmt != PS_MODE_ACTIVE) {
-			rtw_set_ps_mode(padapter, pwrpriv->wowlan_power_mgmt, 0, 0, "WOWLAN");
+			RTW_INFO("%s smart_ps = %d\n", __func__, pwrpriv->smart_ps);
+			rtw_set_ps_mode(padapter, pwrpriv->wowlan_power_mgmt, pwrpriv->smart_ps, 0, "WOWLAN");
 		}
 	}
 #endif /* #ifdef CONFIG_LPS */
@@ -5566,7 +5574,9 @@ int rtw_resume_process_wow(_adapter *padapter)
 	/* Disable WOW, set H2C command */
 	poidparam.subcode = WOWLAN_DISABLE;
 	rtw_hal_set_hwreg(padapter, HW_VAR_WOWLAN, (u8 *)&poidparam);
-
+#ifdef CONFIG_NEW_SIGNAL_STAT_PROCESS
+	rtw_set_signal_stat_timer(&padapter->recvpriv);
+#endif
 #ifdef CONFIG_CONCURRENT_MODE
 	rtw_mi_buddy_reset_drv_sw(padapter);
 #endif

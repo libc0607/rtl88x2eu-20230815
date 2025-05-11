@@ -1897,6 +1897,7 @@ void halbtcoutsrc_DisplayWifiStatus(PBTC_COEXIST pBtCoexist)
 	u16			wifiBcnInterval = 0;
 	PHAL_DATA_TYPE hal = GET_HAL_DATA(padapter);
 	struct btc_wifi_link_info wifi_link_info;
+	struct btc_coex_sta *coex_sta = &pBtCoexist->coex_sta;
 
 	wifi_link_info = halbtcoutsrc_getwifilinkinfo(pBtCoexist);
 
@@ -2045,6 +2046,10 @@ void halbtcoutsrc_DisplayWifiStatus(PBTC_COEXIST pBtCoexist)
 		   pBtCoexist->pwrModeVal[4], pBtCoexist->pwrModeVal[5],
 		   pBtCoexist->bt_info.lps_val,
 		   pBtCoexist->bt_info.rpwm_val);
+	CL_PRINTF(cliBuf);
+
+	CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %d/ %d/", "Rx_Tp/ Tx_Tp (Mbps)",
+		coex_sta->wl_rx_tp, coex_sta->wl_tx_tp);
 	CL_PRINTF(cliBuf);
 }
 
@@ -2941,12 +2946,19 @@ u32 halbtcoutsrc_phydm_query_PHY_counter(void *pBtcContext, u8 info_type)
 #endif
 }
 
-void halbtcoutsrc_phydm_set_agc_table(void *pBtcContext, BOOLEAN bt_is_linked)
+void halbtcoutsrc_phydm_set_agc_table(void *pBtcContext, BOOLEAN bt_is_linked, u8 agc_index)
 {
-#ifdef CONFIG_RTL8822E
 	struct btc_coexist *pBtCoexist = (struct btc_coexist *)pBtcContext;
 
-	phydm_set_agc_table_8822e((struct dm_struct *)pBtCoexist->odm_priv, bt_is_linked);
+	if (IS_HARDWARE_TYPE_8822E(pBtCoexist->Adapter)) {
+#ifdef CONFIG_RTL8822E
+		phydm_set_agc_table_8822e((struct dm_struct *)pBtCoexist->odm_priv, bt_is_linked, agc_index);
+#endif
+	}
+
+#ifdef CONFIG_RTL8822C
+	else if (IS_HARDWARE_TYPE_8822C(pBtCoexist->Adapter))
+		phydm_set_agc_table_8822c((struct dm_struct *)pBtCoexist->odm_priv, bt_is_linked, agc_index);
 #endif
 }
 
@@ -4614,6 +4626,16 @@ void EXhalbtcoutsrc_rx_rate_change_notify(PBTC_COEXIST pBtCoexist, u8 is_data_fr
 #endif
 }
 
+void EXhalbtcoutsrc_thtp_notify(PBTC_COEXIST pBtCoexist, u32 rx_tp, u32 tx_tp)
+{
+	if (!halbtcoutsrc_IsBtCoexistAvailable(pBtCoexist))
+		return;
+
+#if (CONFIG_BTCOEX_SUPPORT_BTC_CMN == 1)
+	rtw_btc_ex_thpt_notify(pBtCoexist, rx_tp, tx_tp);
+#endif
+}
+
 void
 EXhalbtcoutsrc_RfStatusNotify(
 		PBTC_COEXIST		pBtCoexist,
@@ -6126,7 +6148,7 @@ void hal_btcoex_SwitchBtTRxMask(PADAPTER padapter)
 	EXhalbtcoutsrc_SwitchBtTRxMask(&GLBtCoexist);
 }
 
-static void hal_btcoex_trx_rate_info_notify(PADAPTER padapter)
+static void hal_btcoex_trx_info_notify(PADAPTER padapter)
 {
 	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info *pmlmeinfo = &pmlmeext->mlmext_info;
@@ -6153,13 +6175,15 @@ static void hal_btcoex_trx_rate_info_notify(PADAPTER padapter)
 	curr_rx_rate = EXhalbtcoutsrc_rate_id_to_btc_rate_id(podmpriv->rx_rate_plurality);
 
 	EXhalbtcoutsrc_rx_rate_change_notify(&GLBtCoexist, _TRUE, curr_rx_rate);
+
+	EXhalbtcoutsrc_thtp_notify(&GLBtCoexist, podmpriv->rx_tp, podmpriv->tx_tp);
 }
 
 void hal_btcoex_Hanlder(PADAPTER padapter)
 {
 	u32	bt_patch_ver;
 
-	hal_btcoex_trx_rate_info_notify(padapter);
+	hal_btcoex_trx_info_notify(padapter);
 
 	EXhalbtcoutsrc_periodical(&GLBtCoexist);
 
@@ -6292,6 +6316,15 @@ void hal_btcoex_set_reduced_wl_pwr_lvl(PADAPTER padapter, u8 val)
 void hal_btcoex_do_reduce_wl_pwr_lvl(PADAPTER padapter)
 {
 	halbtcoutsrc_reduce_wl_tx_power(&GLBtCoexist, 0);
+}
+
+void hal_btcoex_set_agc_tbl(PADAPTER padapter, u32 bt_linked, u32 agc_tbl_idx)
+{
+	halbtcoutsrc_LeaveLowPower(&GLBtCoexist);
+
+	halbtcoutsrc_phydm_set_agc_table(&GLBtCoexist, !!bt_linked, agc_tbl_idx);
+
+	halbtcoutsrc_NormalLowPower(&GLBtCoexist);
 }
 
 void hal_btcoex_RecordPwrMode(PADAPTER padapter, u8 *pCmdBuf, u8 cmdLen)

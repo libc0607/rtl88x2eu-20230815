@@ -1295,9 +1295,6 @@ void phydm_set_cck_pd_lv_type5(void *dm_void, enum cckpd_lv lv)
 			cck_mode = CCK_BW40_4R;
 	} break;
 	#endif
-	default:
-		/*@pr_debug("[%s] warning!\n", __func__);*/
-		break;
 	}
 
 

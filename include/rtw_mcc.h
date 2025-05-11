@@ -17,8 +17,9 @@
 #ifndef _RTW_MCC_H_
 #define _RTW_MCC_H_
 
-/* #include <drv_types.h> */ /* PADAPTER */
+#include <drv_types.h> /* PADAPTER */
 
+#define NO_NEED_MCC 2
 #define MCC_STATUS_PROCESS_MCC_START_SETTING BIT0
 #define MCC_STATUS_PROCESS_MCC_STOP_SETTING BIT1
 #define MCC_STATUS_NEED_MCC BIT2
@@ -130,8 +131,9 @@ enum mcc_status_rpt {
 	MCC_RPT_STOPMCC = 2,
 	MCC_RPT_READY = 3,
 	MCC_RPT_SWICH_CHANNEL_NOTIFY = 7,
-	MCC_RPT_UPDATE_NOA_START_TIME = 8,
+	MCC_RPT_TBTT = 8,
 	MCC_RPT_TSF = 9,
+	MCC_RPT_UPDATE_NOA_START_TIME = 15, /* Need update FW */
 	MCC_RPT_MAX,
 };
 
@@ -239,6 +241,7 @@ struct mcc_obj_priv {
 	u32 dbg_rf_reg[DBG_MCC_RF_REG_NUM];
 	u32 dbg_rf_reg_val[DBG_MCC_RF_REG_NUM][MAX_RF_PATH];
 	u8 mcc_phydm_offload;
+	u8 tsf_sync_done;
 };
 
 /* backup IQK val */

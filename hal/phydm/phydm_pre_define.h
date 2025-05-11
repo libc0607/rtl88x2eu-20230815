@@ -654,6 +654,16 @@ enum phydm_ic {
 	#define RF_PATH_MEM_SIZE 1
 #endif
 
+#if (defined(PHYDM_COMPILE_ABOVE_4SS))
+	#define PHYDM_MAX_SS	4
+#elif (defined(PHYDM_COMPILE_ABOVE_3SS))
+	#define PHYDM_MAX_SS	3
+#elif (defined(PHYDM_COMPILE_ABOVE_2SS))
+	#define PHYDM_MAX_SS	2
+#else
+	#define PHYDM_MAX_SS	1
+#endif
+
 /*@========[New Phy-Status Support] ========================*/
 #if (RTL8197F_SUPPORT || RTL8723D_SUPPORT || RTL8822B_SUPPORT ||\
 	RTL8821C_SUPPORT || RTL8710B_SUPPORT || RTL8195B_SUPPORT ||\

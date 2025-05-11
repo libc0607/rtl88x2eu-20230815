@@ -179,6 +179,9 @@ typedef enum _WAKEUP_REASON{
 	RX_UNICAST_PKT					= 0x22,
 	RX_PATTERN_PKT					= 0x23,
 	RTD3_SSID_MATCH					= 0x24,
+	MDNS_RX_QUERY_PKT			= 0x2B,
+	MDNS_PASSTHRU_FORWARD_ALL		= 0x2C,
+	MDNS_PASSTHRU_LIST_MATCH		= 0x2D,
 	RX_REALWOW_V2_WAKEUP_PKT		= 0x30,
 	RX_REALWOW_V2_ACK_LOST			= 0x31,
 	ENABLE_FAIL_DMA_IDLE			= 0x40,
@@ -623,6 +626,10 @@ enum lps_pg_hdl_id {
 	LPS_PG_REDLEMEM,
 	LPS_PG_PHYDM_DIS,
 	LPS_PG_PHYDM_EN,
+#ifdef CONFIG_RTL8822E
+	LPS_PG_EN_BYPASS_RFK,
+	LPS_PG_DIS_BYPASS_RFK,
+#endif
 };
 
 u8 rtw_hal_set_lps_pg_info_cmd(_adapter *adapter, bool set_kip_info);

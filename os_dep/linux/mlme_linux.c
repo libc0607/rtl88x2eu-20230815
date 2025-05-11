@@ -181,7 +181,7 @@ void rtw_os_indicate_disconnect(_adapter *adapter,  u16 reason, u8 locally_gener
 	_set_workitem(&adapter->mlmepriv.Linkdown_workitem);
 #endif
 	/* modify for CONFIG_IEEE80211W, none 11w also can use the same command */
-	rtw_reset_securitypriv_cmd(adapter);
+	rtw_reset_securitypriv(adapter);
 
 
 }

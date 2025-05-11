@@ -53,7 +53,7 @@ struct lmt_reg {
 		[MAX_TX_COUNT];
 #endif
 
-	char name[0];
+	char name[];
 };
 
 struct txpwr_lmt_tb_t {

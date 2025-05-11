@@ -26,8 +26,8 @@
 #define __INC_PHYDM_API_H_8822E__
 
 #if (RTL8822E_SUPPORT)
-/*2023.05.29: Modify RFE type 21/22 setting for eFEM */
-#define PHY_CONFIG_VERSION_8822E "2.0.0"
+/*2023.11.30: Update BTC set agc table idx api */
+#define PHY_CONFIG_VERSION_8822E "2.0.1"
 /*#define CONFIG_TXAGC_DEBUG_8822E*/
 
 #define INVALID_RF_DATA 0xffffffff
@@ -43,7 +43,9 @@ enum agc_tab_sel_8822e {
 	OFDM_5G_MID_BAND_8822E		= 2,
 	OFDM_5G_HIGH_BAND_8822E		= 3,
 	OFDM_2G_BTC_8822E		= 4,
-	OFDM_2G_ISO_BTC_8822E		= 5,
+	OFDM_2G_ISO_LNA5_BTC_8822E		= 5,
+	OFDM_2G_ISO_LNA4_BTC_8822E		= 6,
+	OFDM_2G_ISO_LNA3_BTC_8822E		= 7,
 	CCK_8822E			= 8,
 	CCK_BTC_8822E			= 9
 };
@@ -112,7 +114,7 @@ boolean config_phydm_trx_mode_8822e(struct dm_struct *dm,
 				    enum bb_path rx_path,
 				    enum bb_path tx_path_sel_1ss);
 
-void phydm_set_agc_table_8822e(struct dm_struct *dm, boolean bt_is_linked);
+void phydm_set_agc_table_8822e(struct dm_struct *dm, boolean bt_is_linked, u8 iso_table_idx);
 
 boolean config_phydm_switch_band_8822e(struct dm_struct *dm, u8 central_ch);
 

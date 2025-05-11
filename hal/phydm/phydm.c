@@ -44,6 +44,21 @@ const u16 phy_rate_table[] = {
 	26, 52, 78, 104, 156, 208, 234, 260, 312, 360 /*@4ss MCS0~9*/
 };
 
+/*@BW 40 rate table for Roku SW antdiv*/
+const u16 phy_rate_table40[] = {
+	/*@40M*/
+	1, 2, 5, 11,
+	6, 9, 12, 18, 24, 36, 48, 54,
+	13, 27, 40, 54, 81, 108, 121, 135, /*@MCS0~7*/
+	27, 54, 81, 108, 162, 216, 243, 270, /*@MCS8~15*/
+	40, 81, 121, 162, 243, 324, 364, 405, /*@MCS16~23*/
+	54, 108, 162, 216, 324, 432, 486, 540, /*@MCS24~31*/
+	13, 27, 40, 54, 81, 108, 121, 135, 162, 180, /*@1ss MCS0~9*/
+	27, 54, 81, 108, 162, 216, 243, 270, 324, 360, /*@2ss MCS0~9*/
+	40, 81, 121, 162, 243, 324, 364, 405, 486, 540, /*@3ss MCS0~9*/
+	54, 108, 162, 216, 324, 432, 486, 540, 648, 720 /*@4ss MCS0~9*/
+};
+
 void phydm_traffic_load_decision(void *dm_void)
 {
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
@@ -287,6 +302,7 @@ void phydm_common_info_self_init(struct dm_struct *dm)
 		dm->num_rf_path = 4;
 	else
 		dm->num_rf_path = 1;
+	dm->num_max_ss = PHYDM_MAX_SS;
 
 	phydm_trx_antenna_setting_init(dm, dm->num_rf_path);
 
@@ -2038,7 +2054,7 @@ enum phydm_init_result odm_dm_init(struct dm_struct *dm)
 	phydm_common_info_self_init(dm);
 	phydm_rx_phy_status_init(dm);
 #ifdef PHYDM_AUTO_DEGBUG
-	phydm_auto_dbg_engine_init(dm);
+	phydm_auto_debug_init(dm);
 #endif
 	phydm_dig_init(dm);
 #ifdef PHYDM_SUPPORT_CCKPD
@@ -2627,7 +2643,7 @@ void phydm_watchdog(struct dm_struct *dm)
 	phydm_basic_dbg_message(dm);
 	phydm_dm_summary(dm, FIRST_MACID);
 #ifdef PHYDM_AUTO_DEGBUG
-	phydm_auto_dbg_engine(dm);
+	phydm_auto_debug_watchdog(dm);
 #endif
 	phydm_receiver_blocking(dm);
 
@@ -2969,6 +2985,11 @@ void odm_cmn_info_init(struct dm_struct *dm, enum odm_cmninfo cmn_info,
 		break;
 	case ODM_CMNINFO_PEAK_DETECT_MODE:
 		dm->peak_detect_mode = (u8)value;
+		break;
+#endif
+#if (RTL8822C_SUPPORT)
+	case ODM_CMNINFO_HW_SPECIAL_TYPE:
+		dm->hw_special_type = (u8)value;
 		break;
 #endif
 	default:

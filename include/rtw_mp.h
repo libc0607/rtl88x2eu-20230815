@@ -397,6 +397,7 @@ struct mp_priv {
     u32		mplink_rx_len;
 	BOOLEAN mplink_brx;
 	BOOLEAN mplink_btx;
+	BOOLEAN blim_pkt_intvl;
 
 	bool tssitrk_on;
 	bool efuse_update_on;

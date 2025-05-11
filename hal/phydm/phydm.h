@@ -118,6 +118,8 @@
 
 extern const u16	phy_rate_table[84];
 
+extern const u16	phy_rate_table40[84];
+
 /*@============================================================*/
 /*@Definition */
 /*@============================================================*/
@@ -308,6 +310,14 @@ struct phydm_phystatus_statistic {
 	u16			cn_sum[RF_PATH_MEM_SIZE]; /*condition number*/
 	u16			cn_hist[RF_PATH_MEM_SIZE][PHY_HIST_SIZE];
 #endif
+#ifdef PHYDM_AUTO_DEGBUG
+	u32			evm_min_sum;
+	u32			evm_max_sum;
+	u32			evm_ss_sum[PHYDM_MAX_SS];
+	u32			pkt_cnt_t;
+	u32			snr_per_path_sum[RF_PATH_MEM_SIZE];
+	u32			snr_per_path_cnt[RF_PATH_MEM_SIZE];
+#endif
 };
 
 struct phydm_phystatus_avg {
@@ -345,6 +355,13 @@ struct phydm_phystatus_avg {
 	u8			evm_4ss_avg[4];
 	u8			snr_4ss_avg[RF_PATH_MEM_SIZE];
 	#endif
+	#ifdef PHYDM_AUTO_DEGBUG
+	u8			evm_1ss_avg_all;
+	u8			evm_min_avg;
+	u8			evm_max_avg;
+	u8			evm_ss_avg[PHYDM_MAX_SS];
+	u8			snr_per_path_avg[RF_PATH_MEM_SIZE];
+	#endif
 };
 
 struct odm_phy_dbg_info {
@@ -362,6 +379,7 @@ struct odm_phy_dbg_info {
 #endif
 	u32			condi_num; /*@condition number U(18,4)*/
 	u8			condi_num_cdf[CN_CNT_MAX];
+	u8			band_idx;
 	u8			num_qry_beacon_pkt;
 	u8			beacon_cnt_in_period; /*@beacon cnt within watchdog period*/
 	u8			beacon_phy_rate;
@@ -386,6 +404,7 @@ struct odm_phy_dbg_info {
 	u8			condition_num_seg0;
 	u8			eigen_val[4];
 	s16			cfo_tail[4]; /*per-path's cfo_tail */
+	u32			cn_avg;
 	#endif
 	struct phydm_phystatus_statistic	physts_statistic_info;
 	struct phydm_phystatus_avg		phystatus_statistic_avg;
@@ -451,6 +470,7 @@ enum odm_cmninfo {
 	ODM_CMNINFO_EN_AUTO_BW_TH,
 	ODM_CMNINFO_PEAK_DETECT_MODE,
 	ODM_CMNINFO_EN_NBI_DETECT,
+	ODM_CMNINFO_HW_SPECIAL_TYPE,
 	/*@-----------HOOK BEFORE REG INIT-----------*/
 
 	/*@Dynamic value:*/
@@ -874,6 +894,7 @@ struct dm_struct {
 	/*@-------------------------------------*/
 	u32			phydm_sys_up_time;
 	u8			num_rf_path;		/*@ex: 8821C=1, 8192E=2, 8814B=4*/
+	u8			num_max_ss;
 	u32			soft_ap_special_setting;
 	boolean			boolean_dummy;
 	s8			s8_dummy;
@@ -912,9 +933,19 @@ struct dm_struct {
 	u8			agc_table_shift;
 	#endif
 	#if (RTL8822E_SUPPORT)
+	boolean			btc_rssi_processing;
+	boolean			btc_mcs_rssi_en;
+	u8			bt_cck_rssi_th;
+	#endif
+	#if (RTL8822C_SUPPORT)
+	u8			hw_special_type;
+	#endif
+	#if (RTL8822C_SUPPORT || RTL8822E_SUPPORT)
 	boolean			bt_is_linked;
+	u8			bt_iso_tbl_idx;
 	#endif
 	boolean			is_nbi_csi;
+	u8			curr_tx_rate;
 	char			dbg_buf[PHYDM_SNPRINT_SIZE];
 	u8			rx_rate_plurality;
 /*@-----------HOOK BEFORE REG INIT-----------*/
@@ -1030,6 +1061,8 @@ struct dm_struct {
 	/*@[traffic]*/
 	u8			traffic_load;
 	u8			pre_traffic_load;
+	u16			rx_utility;
+	u16			avg_phy_rate;
 	u32			tx_tp;			/*@Mbps*/
 	u32			rx_tp;			/*@Mbps*/
 	u32			total_tp;		/*@Mbps*/
@@ -1102,6 +1135,7 @@ struct dm_struct {
 	s8			TH_L2H_default;
 	s8			th_edcca_hl_diff_default;
 	s8			th_l2h_ini;
+	s8			th_l2h_ini_custom;
 	s8			th_edcca_hl_diff;
 	boolean			carrier_sense_enable;
 	/*@-----------------------------------------------------------*/
@@ -1372,6 +1406,7 @@ struct dm_struct {
 #endif
 #ifdef PHYDM_AUTO_DEGBUG
 	struct	phydm_auto_dbg_struct	auto_dbg_table;
+	struct	phydm_auto_dbg_info	auto_dbg_i;
 #endif
 
 	struct	phydm_pause_lv		pause_lv_table;

@@ -73,6 +73,7 @@ u32 hal_btcoex_GetRaMask(PADAPTER);
 u8 hal_btcoex_query_reduced_wl_pwr_lvl(PADAPTER padapter);
 void hal_btcoex_set_reduced_wl_pwr_lvl(PADAPTER padapter, u8 val);
 void hal_btcoex_do_reduce_wl_pwr_lvl(PADAPTER padapter);
+void hal_btcoex_set_agc_tbl(PADAPTER padapter, u32 bt_linked, u32 agc_tbl_idx);
 void hal_btcoex_RecordPwrMode(PADAPTER padapter, u8 *pCmdBuf, u8 cmdLen);
 void hal_btcoex_DisplayBtCoexInfo(PADAPTER, u8 *pbuf, u32 bufsize);
 void hal_btcoex_SetDBG(PADAPTER, u32 *pDbgModule);

@@ -298,6 +298,10 @@ void phydm_write_dig_reg_jgr3(void *dm_void, u8 igi)
 		return;
 
 	odm_set_bb_reg(dm, R_0x1d70, ODM_BIT_IGI_11AC, igi);
+	
+	/* Set GNT_BT_TX IGI value */
+	if (dm->support_ic_type & ODM_RTL8723F)
+		odm_set_bb_reg(dm, R_0x1968, 0xFE, MIN_2(igi,DIG_MAX_OF_MIN_PERFORMANCE_MODE));
 
 	#if (defined(PHYDM_COMPILE_ABOVE_2SS))
 	if (dm->support_ic_type & PHYDM_IC_ABOVE_2SS)
@@ -1142,15 +1146,18 @@ void phydm_dig_abs_boundary_decision(struct dm_struct *dm, boolean is_dfs_band)
 			#endif
 		} else if (*dm->bb_op_mode == PHYDM_PERFORMANCE_MODE) {
 		/*service 1 devices*/
-			if (*dm->edcca_mode == PHYDM_EDCCA_ADAPT_MODE &&
-			    dm->support_ic_type & (ODM_RTL8197F | ODM_RTL8192F | ODM_RTL8710C | ODM_RTL8721D | ODM_RTL8723D ))
+			if (*dm->edcca_mode == PHYDM_EDCCA_ADAPT_MODE && !(dm->support_ic_type & ODM_IC_PWDB_EDCCA)) {
 			/*dig_max shouldn't be too high because of adaptivity*/
 				dig_t->dm_dig_max =
 					MIN_2((adapt->th_l2h + 30),
 					      DIG_MAX_PERFORMANCE_MODE);
-			else
+			        if (dig_t->dm_dig_max != DIG_MAX_PERFORMANCE_MODE)
+					PHYDM_DBG(dm, DBG_DIG, "IGI ABS_MAX is bounding by EDCCA = ((0x%x))\n", 
+					dig_t->dm_dig_max);
+			}
+			else {
 				dig_t->dm_dig_max = DIG_MAX_PERFORMANCE_MODE;
-
+                        }
 			#if (RTL8822B_SUPPORT == 1)
 			if (dm->is_dig_low_bond)
 				dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE_22B;
@@ -1361,7 +1368,7 @@ u8 phydm_get_new_igi(struct dm_struct *dm, u8 igi, u32 fa_metrics,
 		if (dm->phy_dbg_info.num_qry_beacon_pkt < 5 &&
 		    fa_metrics < dig_t->dm_dig_fa_th1 && dm->bsta_state &&
 		    !(dm->support_ic_type & (ODM_RTL8723D | ODM_RTL8822B |\
-		      ODM_RTL8822C | ODM_RTL8822E))) {
+		      ODM_RTL8822C | ODM_RTL8822E | ODM_RTL8723F))) {
 			dig_t->rx_gain_range_min = 0x1c;
 			igi = dig_t->rx_gain_range_min;
 			PHYDM_DBG(dm, DBG_DIG, "Beacon_num=%d,force igi=0x%x\n",
@@ -3342,22 +3349,24 @@ void phydm_tdma_high_dig(void *dm_void)
 		} else if (*dm->bb_op_mode == PHYDM_PERFORMANCE_MODE) {
 		/*service 1 devices*/
 			if (*dm->edcca_mode == PHYDM_EDCCA_ADAPT_MODE &&
-			   (dm->support_ic_type & (ODM_RTL8192F | ODM_RTL8822E))) {
+			   !(dm->support_ic_type & ODM_IC_PWDB_EDCCA)) {
 			/*dig_max shouldn't be too high becaus of adaptivity*/
 				dig_t->dm_dig_max = MIN_2((adapt->th_l2h + 30),
 						    DIG_MAX_PERFORMANCE_MODE);
+				if (dig_t->dm_dig_max != DIG_MAX_PERFORMANCE_MODE)
+					PHYDM_DBG(dm, DBG_DIG, "IGI ABS_MAX is bounding by EDCCA = ((0x%x))\n", 
+					dig_t->dm_dig_max);
 			} else {
 				dig_t->dm_dig_max = DIG_MAX_PERFORMANCE_MODE;
-				#if (RTL8822B_SUPPORT == 1)
-				if (dm->is_dig_low_bond)
-					dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE_22B;
-				else
-					dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE;
-				#else
-					dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE;
-				#endif
 			}
-			dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE;
+			#if (RTL8822B_SUPPORT == 1)
+			if (dm->is_dig_low_bond)
+				dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE_22B;
+			else
+				dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE;
+			#else
+				dig_t->dig_max_of_min = DIG_MAX_OF_MIN_PERFORMANCE_MODE;
+			#endif
 		}
 
 		#if 0

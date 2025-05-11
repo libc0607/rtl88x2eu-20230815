@@ -2222,9 +2222,9 @@ u8 rtw_get_chplan_hdl(_adapter *adapter, u8 *pbuf)
 		else
 			chplan->txpwr_lmt_names[i] = chplan->txpwr_lmt_names[i - 1] + chplan->txpwr_lmt_names_len[i - 1];
 
+                chplan->txpwr_lmt_names_len[i] = tl_reg_names_len[i];
 		if (tl_reg_names[i] && tl_reg_names_len[i]) {
 			_rtw_memcpy((void *)chplan->txpwr_lmt_names[i], tl_reg_names[i], tl_reg_names_len[i]);
-			chplan->txpwr_lmt_names_len[i] = tl_reg_names_len[i];
 			rtw_mfree(tl_reg_names[i], tl_reg_names_len[i]);
 		}
 	}

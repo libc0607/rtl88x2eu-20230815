@@ -859,6 +859,7 @@ struct btc_coex_sta {
 	boolean wl_leak_ap; /* !is_no_wl_5ms_extend  */
 	boolean wl_blacklist_ap;
 	boolean wl_rfk;
+	boolean wl_media_status_type;
 
 	u8	coex_table_type;
 	u8 	coex_run_reason;
@@ -940,6 +941,8 @@ struct btc_coex_sta {
 	u32	wl_arfb2;
 	u32	wl_traffic_dir;
 	u32	wl_bw;
+	u32	wl_rx_tp;
+	u32	wl_tx_tp;
 	u32	cnt_bt_info_c2h[BTC_BTINFO_SRC_MAX];
 	u32	cnt_bt_le_audio_info_c2h[BTC_BT_LE_AUDIO_INFO_SRC_MAX];
 	u32	cnt_bt[BTC_CNT_BT_MAX];
@@ -1717,7 +1720,8 @@ typedef VOID
 typedef VOID
 (*BTC_PHYDM_SET_AGC_TBL)(
 	IN		PVOID	pDM_Odm,
-	IN		BOOLEAN bt_is_linked
+	IN		BOOLEAN bt_is_linked,
+	IN		u1Byte agc_index
 	);
 
 typedef u1Byte
@@ -2117,6 +2121,12 @@ EXhalbtcoutsrc_rx_rate_change_notify(
 	IN	u1Byte			btc_rate_id
 	);
 VOID
+EXhalbtcoutsrc_thtp_notify(
+	IN 	PBTC_COEXIST		pBtCoexist,
+	IN 	u4Byte			rx_tp,
+	IN 	u4Byte			tx_tp
+	);
+VOID
 EXhalbtcoutsrc_StackOperationNotify(
 	IN	PBTC_COEXIST		pBtCoexist,
 	IN	u1Byte			type
@@ -2229,3 +2239,4 @@ EXhalbtcoutsrc_DisplayAntDetection(
 #define	MASKCCK	0x3f3f3f3f
 
 #endif
+

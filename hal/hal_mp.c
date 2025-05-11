@@ -2429,6 +2429,13 @@ u8 mpt_ProSetPMacTx(PADAPTER	Adapter)
 	PRINT_DATA("Src Address", Adapter->mac_addr, ETH_ALEN);
 	PRINT_DATA("Dest Address", PMacTxInfo.MacAddress, ETH_ALEN);
 #endif
+	if (IS_HARDWARE_TYPE_8822E(Adapter)) {
+		if (pmppriv->blim_pkt_intvl && pmppriv->pktInterval < 2000) {
+			pmppriv->pktInterval = 2000;
+			RTW_INFO("limited interval = %d\n", pmppriv->pktInterval);
+		}
+	}
+
 	if (pmppriv->pktInterval != 0)
 		PMacTxInfo.PacketPeriod = pmppriv->pktInterval;
 

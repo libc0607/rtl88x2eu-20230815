@@ -1804,8 +1804,8 @@ ParseRes rtw_ieee802_11_parse_elems(u8 *start, uint len,
 
 }
 
-static u8 key_char2num(u8 ch);
-static u8 key_char2num(u8 ch)
+u8 key_char2num(u8 ch);
+u8 key_char2num(u8 ch)
 {
 	if ((ch >= '0') && (ch <= '9'))
 		return ch - '0';

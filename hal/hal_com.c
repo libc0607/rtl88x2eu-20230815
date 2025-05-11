@@ -3789,6 +3789,7 @@ void rtw_hal_tx_duty_chk(_adapter *adapter)
 	struct dvobj_priv *dvobj = adapter->dvobj;
 	struct macid_ctl_t *macid_ctl = dvobj_to_macidctl(dvobj);
 	struct tx_duty_t *tx_duty_ctrl = &(dvobj->tx_duty_ctrl);
+	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(adapter);
 	struct sta_info *psta;
 	u8 ther_val = 0, ther_val_path_a = 0, ther_val_path_b = 0;
 	u8 curr_tx_rate = 0, mac_id = 0;
@@ -3814,6 +3815,14 @@ void rtw_hal_tx_duty_chk(_adapter *adapter)
 
 		if (tx_duty_ctrl->dbg)
 			RTW_INFO("%s op ch=%d, disable tx duty or by pass tx duty\n", __func__, rtw_get_oper_ch(adapter));
+		return;
+	}
+
+	if (hal_data->rfe_type == 21 || hal_data->rfe_type == 22) {
+
+		if (tx_duty_ctrl->dbg)
+			RTW_INFO("%s by pass tx duty for rfe_type:%d\n", __func__, hal_data->rfe_type);
+
 		return;
 	}
 
@@ -3847,6 +3856,19 @@ void rtw_hal_tx_duty_chk(_adapter *adapter)
 					break;
 				}
 		}
+	}
+
+	switch (hal_data->txpath_nss[0]) {
+	case BB_PATH_A:
+	case BB_PATH_B:
+	case BB_PATH_C:
+	case BB_PATH_D:
+		/* do nothing for 1ss */
+		break;
+	default:
+		/* TX npath */
+		tx_duty_ctrl->curr_tx_rate_2ss = _TRUE;
+		break;
 	}
 
 	if (tx_duty_ctrl->dbg)
@@ -4862,7 +4884,10 @@ void rtw_set_p2p_ps_offload_cmd(_adapter *adapter, u8 p2p_ps_state)
 	case P2P_PS_DISABLE:
 		RTW_INFO("P2P_PS_DISABLE\n");
 #ifdef CONFIG_TX_DUTY
-		rtw_hal_pause_tx_duty(adapter, 0);
+#ifdef CONFIG_MCC_MODE
+		if (!rtw_hal_check_mcc_status(adapter, MCC_STATUS_DOING_MCC))
+#endif
+			rtw_hal_pause_tx_duty(adapter, 0);
 #endif
 		_rtw_memset(&p2p_ps_para , 0, sizeof(HAL_P2P_PS_PARA));
 		break;
@@ -5347,6 +5372,38 @@ void rtw_hal_set_FwAoacRsvdPage_cmd(PADAPTER padapter, PRSVDPAGE_LOC rsvdpageloc
 #endif /* defined(CONFIG_PNO_SUPPORT) && !defined(RTW_HALMAC) */
 #endif /* CONFIG_WOWLAN */
 }
+
+#ifdef CONFIG_MDNS_OFFLOAD
+void rtw_hal_set_mdns_ofld_cmd(PADAPTER padapter, PRSVDPAGE_LOC rsvdpageloc)
+{
+	struct hal_spec_t *hal_spec = GET_HAL_SPEC(padapter);
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_ofld_info *mdns_ofld_info = &pwrctl->mdns_ofld_info;
+	u8 h2c_mdns_offload_parm[H2C_MDNS_OFFLOAD_LEN] = {0};
+
+	if ((hal_spec->wow_cap & WOW_CAP_MDNS) == 0)
+		return;
+
+	SET_H2CCMD_MDNS_OFFLOAD_EN(h2c_mdns_offload_parm, 1);
+	SET_H2CCMD_MDNS_OFFLOAD_STATE(h2c_mdns_offload_parm,
+				      mdns_ofld_info->offload_state);
+	SET_H2CCMD_MDNS_OFFLOAD_PASSTHRU_BEHAVIOR(h2c_mdns_offload_parm,
+						  mdns_ofld_info->passthru_list.passthru_behavior);
+	SET_H2CCMD_MDNS_OFFLOAD_LOC_IPV4_HEADER(h2c_mdns_offload_parm,
+						rsvdpageloc->loc_ipv4_header);
+	SET_H2CCMD_MDNS_OFFLOAD_LOC_IPV6_HEADER(h2c_mdns_offload_parm,
+						rsvdpageloc->loc_ipv6_header);
+	SET_H2CCMD_MDNS_OFFLOAD_LOC_MDNS_PROTOCOL_DATA(h2c_mdns_offload_parm,
+						       rsvdpageloc->loc_mdns_protocol_data);
+	SET_H2CCMD_MDNS_OFFLOAD_LOC_PASSTHRU_LIST(h2c_mdns_offload_parm,
+						  rsvdpageloc->loc_mdns_passthru_list);
+
+	rtw_hal_fill_h2c_cmd(padapter,
+			     H2C_MDNS_OFFLOAD,
+			     H2C_MDNS_OFFLOAD_LEN,
+			     h2c_mdns_offload_parm);
+}
+#endif
 
 #ifdef DBG_FW_DEBUG_MSG_PKT
 void rtw_hal_set_fw_dbg_msg_pkt_rsvd_page_cmd(PADAPTER padapter, PRSVDPAGE_LOC rsvdpageloc)
@@ -6412,6 +6469,9 @@ static u8 rtw_hal_set_wowlan_ctrl_cmd(_adapter *adapter, u8 enable, u8 change_un
 #endif /* CONFIG_RTW_ONE_PIN_GPIO */
 #endif /* CONFIG_DIS_UPHY */
 
+#ifndef CONFIG_USB_INBAND
+	SET_H2CCMD_WOWLAN_DISABLE_INBAND(u1H2CWoWlanCtrlParm, 1);
+#endif
 
 	ret = rtw_hal_fill_h2c_cmd(adapter,
 				   H2C_WOWLAN,
@@ -6537,6 +6597,8 @@ static u8 rtw_hal_set_remote_wake_ctrl_cmd(_adapter *adapter, u8 enable)
 		}
 	#endif /* CONFIG_P2P_WOWLAN */
 	}
+
+	SET_H2CCMD_REMOTE_WAKE_CTRL_TIM_PARSER_EN(u1H2CRemoteWakeCtrlParm, 1);
 
 	if (hal_spec->wow_cap & WOW_CAP_CSA)
 		SET_H2CCMD_REMOTE_WAKE_CTRL_CSA_PARSER_EN(u1H2CRemoteWakeCtrlParm, 1);
@@ -11120,8 +11182,11 @@ static void rtw_hal_wow_enable(_adapter *adapter)
 #if defined(CONFIG_USB_HCI) || defined(CONFIG_PCI_HCI)
 #ifndef CONFIG_USB_INBAND
 	/* don't generate usb toggle signal during suspend process */
-	if(_rtw_wow_chk_cap(adapter, WOW_CAP_DIS_INBAND_SIGNAL))
+	if(_rtw_wow_chk_cap(adapter, WOW_CAP_DIS_INBAND_SIGNAL)) {
 		rtw_write8(adapter, 0xfe10, 0x19);
+		RTW_INFO("disable usb in-band signal, 0xfe10: 0x%02x\n",
+			 rtw_read8(adapter, 0xfe10));
+	}
 #endif
 	/* Invoid SE0 reset signal during suspending*/
 	rtw_write8(adapter, REG_RSV_CTRL, 0x20);
@@ -11163,6 +11228,12 @@ void _dbg_rtw_wake_up_reason(_adapter *adapter, u8 reason)
 		_dbg_wake_up_reason_string(adapter, "Rx unicast packet");
 	else if (RX_PATTERN_PKT == reason)
 		_dbg_wake_up_reason_string(adapter, "Rx pattern packet");
+	else if (MDNS_RX_QUERY_PKT == reason)
+		_dbg_wake_up_reason_string(adapter, "Rx mdns query packet");
+	else if (MDNS_PASSTHRU_FORWARD_ALL == reason)
+		_dbg_wake_up_reason_string(adapter, "mdns query packet passthrough forward");
+	else if (MDNS_PASSTHRU_LIST_MATCH == reason)
+		_dbg_wake_up_reason_string(adapter, "mdns query packet passthrough list matched");
 	else if (RX_PNO == reason)
 		_dbg_wake_up_reason_string(adapter, "RX PNO");
 	else if (RTD3_SSID_MATCH == reason)
@@ -11403,6 +11474,248 @@ static void rtw_hal_construct_pattern_info(
 
 }
 #endif /* CONFIG_WOW_PATTERN_IN_TXFIFO */
+
+#ifdef CONFIG_MDNS_OFFLOAD
+static void rtw_hal_construct_mdns_resp(PADAPTER padapter, u8 *pframe)
+{
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_ofld_info *mdns_ofld_info = &pwrctl->mdns_ofld_info;
+	struct rtw_mdns_resp_entry *mdns_resp_entry = NULL;
+	u16 le16;
+	u16 offset = 0;
+	u8 i;
+	u8 j;
+
+	/* MDNS PROTOCOL DATA Formate Version */
+	pframe[offset] = 0x1;
+	offset += 8;
+
+	for (i = 0; i < MAX_MDNS_RESP_NUM; i++) {
+		if (!mdns_ofld_info->resp_entry[i].content_len) {
+			_rtw_memset(&pframe[offset], 0, 554);
+			offset += 554;
+			continue;
+		}
+
+		mdns_resp_entry = &mdns_ofld_info->resp_entry[i];
+
+		for (j = 0; j < MAX_MDNS_MATCH_CRITERIA_NUM; j++) {
+			le16 = cpu_to_le16(mdns_resp_entry->match_ct[j].name_offset);
+			_rtw_memcpy(&pframe[offset], &le16, 2);
+			offset += 2;
+			le16 = cpu_to_le16(mdns_resp_entry->match_ct[j].type);
+			_rtw_memcpy(&pframe[offset], &le16, 2);
+			offset += 2;
+			pframe[offset] = mdns_resp_entry->match_ct[j].name_len;
+			offset += 1;
+		}
+
+		le16 = cpu_to_le16(mdns_resp_entry->content_len);
+		_rtw_memcpy(&pframe[offset], &le16, 2);
+		offset += 2;
+		_rtw_memcpy(&pframe[offset], mdns_resp_entry->content, MAX_MDNS_RESP_LEN);
+		offset += MAX_MDNS_RESP_LEN;
+	}
+
+	/* Verify offload size
+	if (offset != 4440)
+		RTW_INFO("%s(): Wrong offload size %d\n", __func__, offset);
+	else
+		RTW_INFO("%s(): Correct offload size %d\n", __func__, offset);
+	*/
+}
+
+static void rtw_hal_construct_passthru_list(PADAPTER padapter, u8 *pframe)
+{
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_ofld_info *mdns_ofld_info = &pwrctl->mdns_ofld_info;
+	struct rtw_mdns_passthru_list *passthru_list = &mdns_ofld_info->passthru_list;
+	struct rtw_mdns_passthru_name *passthru_name = NULL;
+	u16 offset = 0;
+	u8 i;
+
+
+	/* MDNS PASSTHRU LIST Formate Version */
+	pframe[offset] = 0x1;
+	offset += 8;
+
+	for (i = 0; i < MAX_MDNS_PASSTHRU_NAME_NUM; i++) {
+		passthru_name = &passthru_list->passthru_name[i];
+		if (!passthru_name->name_len) {
+			_rtw_memset(&pframe[offset], 0, 256);
+			offset += 256;
+			continue;
+		}
+
+		pframe[offset] = passthru_name->name_len;
+		offset += 1;
+		_rtw_memcpy(&pframe[offset], passthru_name->name,
+			    MAX_MDNS_DOMAIN_NAME_LEN);
+		offset += MAX_MDNS_DOMAIN_NAME_LEN;
+	}
+
+	/* Verify offload size
+	if (offset != 2056)
+		RTW_INFO("%s(): Wrong offload size %d\n", __func__, offset);
+	else
+		RTW_INFO("%s(): Correct offload size %d\n", __func__, offset);
+	*/
+}
+
+static void rtw_hal_construct_ipv4_packet(PADAPTER padapter, u8 *pframe, u16 *length)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
+	struct mlme_ext_priv *pmlmeext = &(padapter->mlmeextpriv);
+	struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
+	struct security_priv *psecuritypriv = &padapter->securitypriv;
+	struct rtw_ieee80211_hdr *pwlanhdr;
+	u16 *fctrl;
+	u8 llc_header[8] = {0xAA, 0xAA, 0x03, 0x00, 0x00, 0x00, 0x08, 0x00};
+	u8 mulicast_ipv4_addr[4] = {0xe0, 0x00, 0x00, 0xfb};
+	u8 mdns_mac_addr[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0xfb};
+	u8 EncryptionHeadOverhead = 0;
+
+	pwlanhdr = (struct rtw_ieee80211_hdr *)pframe;
+
+	fctrl = &pwlanhdr->frame_ctl;
+	*(fctrl) = 0;
+
+	/* ------------------------------------------------------------------------- */
+	/* MAC Header. */
+	/* ------------------------------------------------------------------------- */
+	SetFrameType(fctrl, WIFI_DATA);
+	/* set_frame_sub_type(fctrl, 0); */
+	SetToDs(fctrl);
+
+	_rtw_memcpy(pwlanhdr->addr1, get_my_bssid(&(pmlmeinfo->network)), ETH_ALEN);
+	_rtw_memcpy(pwlanhdr->addr2, adapter_mac_addr(padapter), ETH_ALEN);
+	_rtw_memcpy(pwlanhdr->addr3, mdns_mac_addr, ETH_ALEN );
+
+	SetSeqNum(pwlanhdr, 0);
+	set_duration(pwlanhdr, 0);
+
+#ifdef CONFIG_WAPI_SUPPORT
+	*length = sMacHdrLng;
+#else
+	*length = 24;
+#endif
+	EncryptionHeadOverhead = get_enc_overhead(psecuritypriv->dot118021XGrpPrivacy);
+	if (EncryptionHeadOverhead > 0) {
+		_rtw_memset(&(pframe[*length]), 0, EncryptionHeadOverhead);
+		*length += EncryptionHeadOverhead;
+		SetPrivacy(fctrl);
+	}
+
+	/* ------------------------------------------------------------------------- */
+	/* Frame Body. */
+	/* ------------------------------------------------------------------------- */
+
+	/* LLC header */
+	_rtw_memcpy(&pframe[*length], llc_header, sizeof(llc_header));
+	*length += 8;
+
+	/* IP element */
+	SET_IPHDR_VERSION(&pframe[*length], 0x45);
+	SET_IPHDR_DSCP(&pframe[*length], 0);
+	SET_IPHDR_TOTAL_LEN(&pframe[*length], 0); // filled by fw
+	SET_IPHDR_IDENTIFIER(&pframe[*length], 0); // filled by fw
+	SET_IPHDR_FLAGS(&pframe[*length], 0x40);
+	SET_IPHDR_FRAG_OFFSET(&pframe[*length], 0);
+	SET_IPHDR_TTL(&pframe[*length], 0x40);
+	SET_IPHDR_PROTOCOL(&pframe[*length], 0x11); // UDP
+	SET_IPHDR_HDR_CHECKSUM(&pframe[*length], 0); // filled by fw
+	SET_IPHDR_SRC_IP_ADDR(&pframe[*length], pmlmeinfo->ip_addr);
+	SET_IPHDR_DST_IP_ADDR(&pframe[*length], mulicast_ipv4_addr);
+	*length += 20;
+
+	/* UDP element */
+	SET_UDP_SRC_PORT(&pframe[*length], 0xe914); // MDNS
+	SET_UDP_DST_PORT(&pframe[*length], 0xe914); // MDNS
+	SET_UDP_LEN(&pframe[*length], 0);      //  filled by fw
+	SET_UDP_CHECKSUM(&pframe[*length], 0);     // filled by fw
+	*length += 8;
+
+	/* MDNS content filled by fw */
+	*length += MAX_MDNS_RESP_LEN;
+}
+
+#ifdef CONFIG_IPV6
+static void rtw_hal_construct_ipv6_packet(PADAPTER padapter, u8 *pframe, u16 *length)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
+	struct mlme_ext_priv *pmlmeext = &(padapter->mlmeextpriv);
+	struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
+	struct security_priv *psecuritypriv = &padapter->securitypriv;
+	struct rtw_ieee80211_hdr *pwlanhdr;
+	u16 *fctrl;
+	u8 llc_ipv6_header[8] = {0xAA, 0xAA, 0x03, 0x00, 0x00, 0x00, 0x86, 0xdd};
+	u8 mulicast_ipv6_addr[16] = {0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfb};
+	u8 mdns_ipv6_mac_addr[6] = {0x33, 0x33, 0x00, 0x00, 0x00, 0xfb};
+	u8 EncryptionHeadOverhead = 0;
+
+	pwlanhdr = (struct rtw_ieee80211_hdr *)pframe;
+
+	fctrl = &pwlanhdr->frame_ctl;
+	*(fctrl) = 0;
+
+	/* ------------------------------------------------------------------------- */
+	/* MAC Header. */
+	/* ------------------------------------------------------------------------- */
+	SetFrameType(fctrl, WIFI_DATA);
+	/* set_frame_sub_type(fctrl, 0); */
+	SetToDs(fctrl);
+
+	_rtw_memcpy(pwlanhdr->addr1, get_my_bssid(&(pmlmeinfo->network)), ETH_ALEN);
+	_rtw_memcpy(pwlanhdr->addr2, adapter_mac_addr(padapter), ETH_ALEN);
+	_rtw_memcpy(pwlanhdr->addr3, mdns_ipv6_mac_addr, ETH_ALEN );
+
+	SetSeqNum(pwlanhdr, 0);
+	set_duration(pwlanhdr, 0);
+
+#ifdef CONFIG_WAPI_SUPPORT
+	*length = sMacHdrLng;
+#else
+	*length = 24;
+#endif
+	EncryptionHeadOverhead = get_enc_overhead(psecuritypriv->dot118021XGrpPrivacy);
+	if (EncryptionHeadOverhead > 0) {
+		_rtw_memset(&(pframe[*length]), 0, EncryptionHeadOverhead);
+		*length += EncryptionHeadOverhead;
+		SetPrivacy(fctrl);
+	}
+
+	/* ------------------------------------------------------------------------- */
+	/* Frame Body. */
+	/* ------------------------------------------------------------------------- */
+
+	/* LLC header */
+	_rtw_memcpy(&pframe[*length], llc_ipv6_header, sizeof(llc_ipv6_header));
+	*length += 8;
+
+	/* IP element */
+	SET_IPHDRV6_VERSION(&pframe[*length], 0x06);
+	SET_IPHDRV6_FLOW_LABEL(&pframe[*length], 0); // filled by fw
+	SET_IPHDRV6_PAYLOAD_LENGTH(&pframe[*length], 0); // filled by fw
+	SET_IPHDRV6_NEXT_HEADER(&pframe[*length], 0x11);// UDP
+	SET_IPHDRV6_HOP_LIMIT(&pframe[*length], 0xFF);
+	SET_IPHDRV6_SRC_IP_ADDR(&pframe[*length], pmlmeinfo->ip6_addr);
+	SET_IPHDRV6_DST_IP_ADDR(&pframe[*length], mulicast_ipv6_addr);
+	*length += 40;
+
+	/* UDP element */
+	SET_UDP_SRC_PORT(&pframe[*length], 0xe914); // MDNS
+	SET_UDP_DST_PORT(&pframe[*length], 0xe914); // MDNS
+	SET_UDP_LEN(&pframe[*length], 0);      //  filled by fw
+	SET_UDP_CHECKSUM(&pframe[*length], 0);     // filled by fw
+	*length += 8;
+
+	/* MDNS content filled by fw */
+	*length += MAX_MDNS_RESP_LEN;
+}
+#endif
+#endif
+
 void rtw_hal_set_wow_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 				  u8 tx_desc, u32 page_size, u8 *page_num,
 				  RSVDPAGE_LOC *rsvd_page_loc)
@@ -11412,6 +11725,7 @@ void rtw_hal_set_wow_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(adapter);
 	struct mlme_ext_priv	*pmlmeext;
 	struct mlme_ext_info	*pmlmeinfo;
+	struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
 	u32	ARPLength = 0, GTKLength = 0, PNOLength = 0, ScanInfoLength = 0;
 	u32 ProbeReqLength = 0, ns_len = 0, rc_len = 0;
 	u8 CurtPktPageNum = 0;
@@ -11446,7 +11760,12 @@ void rtw_hal_set_wow_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 	u16 ieee80211w_info_len = 0;
 	u32 sa_query_len = 0;
 #endif
-
+#ifdef CONFIG_MDNS_OFFLOAD
+	u16 mdns_rsvd_len = 0;
+	u8 mdns_need_ofld_pkt = 0;
+	struct rtw_mdns_ofld_info *mdns_ofld_info = &pwrctl->mdns_ofld_info;
+	struct rtw_mdns_passthru_list *mdns_passthru_list = &mdns_ofld_info->passthru_list;
+#endif
 	pmlmeext = &adapter->mlmeextpriv;
 	pmlmeinfo = &pmlmeext->mlmext_info;
 
@@ -11456,7 +11775,78 @@ void rtw_hal_set_wow_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 		rsvd_page_loc->LocArpRsp = *page_num;
 
 		RTW_INFO("LocArpRsp: %d\n", rsvd_page_loc->LocArpRsp);
+#ifdef CONFIG_MDNS_OFFLOAD
+		if (hal_spec->wow_cap & WOW_CAP_MDNS) {
+			int i;
 
+			/* Check mdns response exist */
+			for (i = 0; i < MAX_MDNS_RESP_NUM; i++) {
+				if (mdns_ofld_info->resp_entry[i].content_len)
+					mdns_need_ofld_pkt = _TRUE;
+			}
+
+			/* IPv4 packet format */
+			if (mdns_need_ofld_pkt &&
+			    !is_all_null(pmlmeinfo->ip_addr, RTW_IP_ADDR_LEN)) {
+				rsvd_page_loc->loc_ipv4_header = *page_num;
+				RTW_INFO("loc_ipv4_header: %d\n", rsvd_page_loc->loc_ipv4_header);
+
+				rtw_hal_construct_ipv4_packet(adapter, &pframe[*index], &mdns_rsvd_len);
+				rtw_hal_fill_fake_txdesc(adapter, &pframe[*index - tx_desc],
+							 mdns_rsvd_len, _FALSE, _FALSE, _TRUE);
+
+				CurtPktPageNum = (u8)PageNum(mdns_rsvd_len, page_size);
+				*page_num += CurtPktPageNum;
+				*index += (CurtPktPageNum * page_size);
+				RSVD_PAGE_CFG("WOW-loc_ipv4_header", CurtPktPageNum, *page_num);
+			}
+#ifdef CONFIG_IPV6
+			/* IPv6 packet format */
+			if (mdns_need_ofld_pkt &&
+			    !is_all_null(pmlmeinfo->ip6_addr, RTW_IPv6_ADDR_LEN)) {
+				rsvd_page_loc->loc_ipv6_header = *page_num;
+				RTW_INFO("loc_ipv6_header: %d\n", rsvd_page_loc->loc_ipv6_header);
+
+				rtw_hal_construct_ipv6_packet(adapter, &pframe[*index], &mdns_rsvd_len);
+				rtw_hal_fill_fake_txdesc(adapter, &pframe[*index - tx_desc],
+							 mdns_rsvd_len, _FALSE, _FALSE, _TRUE);
+
+				CurtPktPageNum = (u8)PageNum(mdns_rsvd_len, page_size);
+				*page_num += CurtPktPageNum;
+				*index += (CurtPktPageNum * page_size);
+				RSVD_PAGE_CFG("WOW-loc_ipv6_header", CurtPktPageNum, *page_num);
+			}
+#endif
+			/* mDNS protcol data */
+			if (mdns_need_ofld_pkt) {
+				rsvd_page_loc->loc_mdns_protocol_data = *page_num;
+				RTW_INFO("loc_mdns_protocol_data: %d\n",
+					 rsvd_page_loc->loc_mdns_protocol_data);
+
+				rtw_hal_construct_mdns_resp(adapter, &pframe[*index - tx_desc]);
+
+				CurtPktPageNum = (u8)PageNum(8 + 546 * MAX_MDNS_RESP_NUM, page_size);
+				*page_num += CurtPktPageNum;
+				*index += (CurtPktPageNum * page_size);
+				RSVD_PAGE_CFG("WOW-loc_mdns_protocol_data", CurtPktPageNum, *page_num);
+			}
+
+			/* mDNS passthru list */
+			if (mdns_passthru_list->passthru_behavior == PASSTHRU_LIST ||
+				mdns_passthru_list->passthru_name_num != 0) {
+				rsvd_page_loc->loc_mdns_passthru_list = *page_num;
+				RTW_INFO("loc_mdns_passthru_list: %d\n",
+					 rsvd_page_loc->loc_mdns_passthru_list);
+
+				rtw_hal_construct_passthru_list(adapter, &pframe[*index - tx_desc]);
+
+				CurtPktPageNum = (u8)PageNum(8 + 258 * MAX_MDNS_PASSTHRU_NAME_NUM, page_size);
+				*page_num += CurtPktPageNum;
+				*index += (CurtPktPageNum * page_size);
+				RSVD_PAGE_CFG("WOW-loc_mdns_passthru_list", CurtPktPageNum, *page_num);
+			}
+		}
+#endif
 #ifdef CONFIG_WAR_OFFLOAD
 		if ((0 != pwrctl->wowlan_war_offload_ipv4.ip_addr[0]) &&
 			(_FALSE == _rtw_memcmp(&pwrctl->wowlan_war_offload_ipv4.ip_addr[0], pmlmeinfo->ip_addr, 4))) {
@@ -12379,6 +12769,9 @@ static void rtw_hal_build_lps_pg_info_rsvd_page(struct dvobj_priv *dvobj, _adapt
 	if (buf) {
 		_adapter *adapter = dvobj_get_primary_adapter(dvobj);
 		struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(adapter);
+#ifdef CONFIG_RTL8822E
+		struct rsvd_page_cache_t *cache = &pwrpriv->lpspg_kip_info;
+#endif
 		struct sta_info *psta;
 #ifdef CONFIG_MBSSID_CAM
 		u8 cam_id = INVALID_CAM_ID;
@@ -12430,18 +12823,15 @@ static void rtw_hal_build_lps_pg_info_rsvd_page(struct dvobj_priv *dvobj, _adapt
 		RTW_INFO("[LPSPG-INFO] Security CAM entry number :%d\n", sec_cam_num);
 
 		/*Btye 5 - Txbuf used page number for fw offload*/
-#ifdef CONFIG_RTL8822E
-		{
-			u32 PageSize = 0;
 
-			rtw_hal_get_def_var(adapter, HAL_DEF_TX_PAGE_SIZE, (u8 *)&PageSize);
-			drv_rsvdpage_num = (u16)PageNum(MAX_RSVDPAGE_BKUP_SIZE_IN_FW_PG, PageSize);
-		}
-#else
 		if (pwrpriv->wowlan_mode == _TRUE || pwrpriv->wowlan_ap_mode == _TRUE)
 			drv_rsvdpage_num = rtw_hal_get_txbuff_rsvd_page_num(adapter, _TRUE);
 		else
 			drv_rsvdpage_num = rtw_hal_get_txbuff_rsvd_page_num(adapter, _FALSE);
+
+#ifdef CONFIG_RTL8822E
+		/* do not need backup kip info */
+		drv_rsvdpage_num -= cache->page_num;
 #endif
 		LPSPG_RSVD_PAGE_SET_DRV_RSVDPAGE_NUM(buf, drv_rsvdpage_num);
 		RTW_INFO("[LPSPG-INFO] DRV's rsvd page numbers :%d\n", drv_rsvdpage_num);
@@ -12836,7 +13226,16 @@ void rtw_hal_lps_pg_handler(_adapter *adapter, enum lps_pg_hdl_id hdl_id)
 			sta->lps_pg_rssi_lv = 0;
 		}
 		break;
-
+#ifdef CONFIG_RTL8822E
+	case LPS_PG_EN_BYPASS_RFK:
+		phy_set_bb_reg(adapter, 0x1e24, BIT17, 0);
+		RTW_INFO("[%s] 0x1e24 = 0x%x\n", __func__, phy_query_bb_reg(adapter, 0x1e24, MASKDWORD));
+		break;
+	case LPS_PG_DIS_BYPASS_RFK:
+		phy_set_bb_reg(adapter, 0x1e24, BIT17, 1);
+		RTW_INFO("[%s] 0x1e24 = 0x%x\n", __func__, phy_query_bb_reg(adapter, 0x1e24, MASKDWORD));
+		break;
+#endif
 	default:
 		break;
 	}
@@ -13305,6 +13704,9 @@ download_page:
 		if (pwrctl->wowlan_mode == _TRUE &&
 			pwrctl->wowlan_in_resume == _FALSE)
 			rtw_hal_set_FwAoacRsvdPage_cmd(adapter, &RsvdPageLoc);
+#ifdef CONFIG_MDNS_OFFLOAD
+		rtw_hal_set_mdns_ofld_cmd(adapter, &RsvdPageLoc);
+#endif
 #endif /* CONFIG_WOWLAN */
 #ifdef CONFIG_AP_WOWLAN
 		if (pwrctl->wowlan_ap_mode == _TRUE)

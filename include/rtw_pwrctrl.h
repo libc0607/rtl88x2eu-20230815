@@ -49,6 +49,9 @@
 		#define DEFAULT_PATTERN_NUM 3
 	#endif
 
+#ifdef CONFIG_GOOGLE_CAST_WAKEUP
+	#define GOOGLE_CAST_PATTERN_NUM 3
+#endif
 #ifdef CONFIG_WOW_PATTERN_HW_CAM	/* Frame Mask Cam number for pattern match */
 #define MAX_WKFM_CAM_NUM	12
 #else
@@ -85,6 +88,46 @@ typedef struct rtl_priv_pattern {
 	char mask[MAX_WKFM_SIZE];
 } rtl_priv_pattern_t;
 
+#ifdef CONFIG_MDNS_OFFLOAD
+#define MAX_MDNS_RESP_NUM 8
+#define MAX_MDNS_RESP_LEN 512
+#define MAX_MDNS_MATCH_CRITERIA_NUM 8
+#define MAX_MDNS_PASSTHRU_NAME_NUM 8
+#define MAX_MDNS_DOMAIN_NAME_LEN 255
+#define PASSTHRU_FORWARD_ALL 0
+#define PASSTHRU_DROP_ALL 1
+#define PASSTHRU_LIST 2
+
+struct rtw_mdns_match_criteria {
+	u16 name_offset;
+	u16 type;
+	u8 name_len;
+};
+
+struct rtw_mdns_resp_entry {
+	u16 content_len;
+	u8 match_ct_num;
+	u8 content[MAX_MDNS_RESP_LEN];
+	struct rtw_mdns_match_criteria match_ct[MAX_MDNS_MATCH_CRITERIA_NUM];
+};
+
+struct rtw_mdns_passthru_name {
+	u8 name[MAX_MDNS_DOMAIN_NAME_LEN];
+	u8 name_len;
+};
+
+struct rtw_mdns_passthru_list {
+	u8 passthru_behavior;
+	u8 passthru_name_num;
+	struct rtw_mdns_passthru_name passthru_name[MAX_MDNS_PASSTHRU_NAME_NUM];
+};
+
+struct rtw_mdns_ofld_info {
+	u8 offload_state;
+	struct rtw_mdns_resp_entry resp_entry[MAX_MDNS_RESP_NUM];
+	struct rtw_mdns_passthru_list passthru_list;
+};
+#endif
 #endif /* CONFIG_WOWLAN */
 
 enum Power_Mgnt {
@@ -581,7 +624,10 @@ struct pwrctrl_priv {
 	u32    wowlan_war_offload_mdns_para_cur_size;
 	u32    wowlan_war_offload_mdns_rsp_cur_size;
 #endif /* CONFIG_OFFLOAD_MDNS_V4 || CONFIG_OFFLOAD_MDNS_V6 */    
-#endif /* CONFIG_WAR_OFFLOAD */	
+#endif /* CONFIG_WAR_OFFLOAD */
+#ifdef CONFIG_MDNS_OFFLOAD
+	struct rtw_mdns_ofld_info mdns_ofld_info;
+#endif
 #endif /* CONFIG_WOWLAN */
 	_timer	pwr_state_check_timer;
 	int		pwr_state_check_interval;

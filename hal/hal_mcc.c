@@ -31,10 +31,10 @@
 #define TU 1024 /* 1 TU equals 1024 microseconds */
 /* druration, TSF sync offset, start time offset, interval (unit:TU (1024 microseconds))*/
 u8 mcc_switch_channel_policy_table[][7]={
-	{20, 50, 40, 100, 0, 0, 30},
-	{80, 50, 10, 100, 0, 0, 30},
-	{36, 50, 32, 100, 0, 0, 30},
-	{30, 50, 35, 100, 0, 0, 30},
+	{20, 50, 40, 100, 2, 1, 30},
+	{80, 50, 10, 100, 2, 1, 30},
+	{36, 50, 32, 100, 2, 1, 30},
+	{30, 50, 35, 100, 2, 1, 30},
 };
 
 const int mcc_max_policy_num = sizeof(mcc_switch_channel_policy_table) /sizeof(u8) /7;
@@ -1275,7 +1275,11 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 	struct mcc_adapter_priv *mccadapriv = NULL;
 #if defined(CONFIG_RTL8822C) || defined(CONFIG_RTL8822E)
 	struct dm_struct *phydm = adapter_to_phydm(adapter);
+#if defined(CONFIG_RTL8822C)
 	struct txagc_table_8822c tab;
+#elif defined(CONFIG_RTL8822E)
+	struct txagc_table_8822e tab;
+#endif
 	u8 agc_buff[2][NUM_RATE_AC_2SS]; /* tatol 0x40 rate index for PATH A/B */
 #endif
 	
@@ -1288,7 +1292,7 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 		if (!hal->RegIQKFWOffload)
 			RTW_WARN("[MCC] must enable FW IQK for New IC\n");
 #endif /* CONFIG_MCC_MODE_V2 */
-		*total_page_num += (2 * MAX_MCC_NUM+ 1);
+		*total_page_num += (2 * MAX_MCC_NUM + 1);
 		RTW_INFO("[MCC] allocate mcc rsvd page num = %d\n", *total_page_num);
 		goto exit;
 	}
@@ -1699,7 +1703,11 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 					agc_buff[path][rate] = power_index;
 				}
 			}
+#if defined(CONFIG_RTL8822C)
 			phydm_get_txagc_ref_and_diff_8822c(phydm, agc_buff, NUM_RATE_AC_2SS, &tab);
+#elif defined(CONFIG_RTL8822E)
+			phydm_get_txagc_ref_and_diff_8822e(phydm, agc_buff, NUM_RATE_AC_2SS, &tab);
+#endif
 			*start = tab.ref_pow_cck[0];
 			start++;
 			*start = tab.ref_pow_cck[1];
@@ -2320,6 +2328,13 @@ static void rtw_hal_mcc_start_prehdl(PADAPTER padapter)
 		odm_cmn_info_update(dm, ODM_CMNINFO_IS_DOWNLOAD_FW, hal->bFWReady);
 	}
 #endif
+#ifdef CONFIG_RTL8822E
+#ifdef CONFIG_TX_DUTY
+	if (IS_HARDWARE_TYPE_8822E(padapter)) {
+		rtw_hal_pause_tx_duty(padapter, _TRUE);
+	}
+#endif
+#endif
 }
 
 static u8 rtw_hal_set_mcc_start_setting(PADAPTER padapter, u8 status)
@@ -2443,6 +2458,11 @@ static void rtw_hal_mcc_stop_posthdl(PADAPTER padapter)
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	struct mcc_obj_priv *mccobjpriv = &(adapter_to_dvobj(padapter)->mcc_objpriv);
 	struct mcc_adapter_priv *mccadapriv = NULL;
+#ifdef CONFIG_RTL8822E
+#ifdef CONFIG_TX_DUTY
+	struct wifidirect_info *pwdinfo = &(padapter->wdinfo);
+#endif
+#endif
 	_adapter *iface = NULL;
 	PHAL_DATA_TYPE hal;
 	u8 i = 0;
@@ -2494,6 +2514,14 @@ static void rtw_hal_mcc_stop_posthdl(PADAPTER padapter)
 		
 		odm_cmn_info_update(dm, ODM_CMNINFO_IS_DOWNLOAD_FW, _FALSE);
 	}
+#endif
+#ifdef CONFIG_RTL8822E
+#ifdef CONFIG_TX_DUTY
+	if (IS_HARDWARE_TYPE_8822E(padapter)) {
+		if (pwdinfo->p2p_ps_state == P2P_PS_DISABLE)
+			rtw_hal_pause_tx_duty(padapter, _FALSE);
+	}
+#endif
 #endif
 }
 
@@ -2969,8 +2997,14 @@ void rtw_hal_mcc_c2h_handler(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
 	case MCC_RPT_SWICH_CHANNEL_NOTIFY:
 		rtw_hal_mcc_sw_ch_fw_notify_hdl(padapter);
 		break;
+	case MCC_RPT_TBTT:
+		if (pmccobjpriv->tsf_sync_done == _TRUE) {
+			rtw_hal_mcc_update_noa_start_time_hdl(padapter, buflen, tmpBuf);
+			pmccobjpriv->tsf_sync_done = _FALSE;
+		}
+		break;
 	case MCC_RPT_UPDATE_NOA_START_TIME:
-		rtw_hal_mcc_update_noa_start_time_hdl(padapter, buflen, tmpBuf);
+		pmccobjpriv->tsf_sync_done = _TRUE;
 		break;
 	case MCC_RPT_TSF:
 		_enter_critical_bh(&pmccobjpriv->mcc_lock, &irqL);
@@ -3031,7 +3065,7 @@ void rtw_hal_mcc_update_parameter(PADAPTER padapter, u8 force_update)
 
 		/* GO/AP is order 0, GC/STA is order 1 */
 		order0_duration = order0_iface->mcc_adapterpriv.mcc_duration = interval - duration;
-		order0_iface->mcc_adapterpriv.mcc_duration = duration;
+		order1_iface->mcc_adapterpriv.mcc_duration = duration;
 
 		tsf_bsae_port = rtw_hal_get_port(order1_iface);
 		tsf_sync_port = rtw_hal_get_port(order0_iface);
@@ -3399,7 +3433,7 @@ u8 rtw_hal_set_mcc_setting_scan_complete(PADAPTER padapter)
  */
 u8 rtw_hal_set_mcc_setting_start_bss_network(PADAPTER padapter, u8 chbw_allow)
 {
-	u8 ret = _FAIL;
+	u8 ret = NO_NEED_MCC;
 
 	if (MCC_EN(padapter)) {
 		/* channel bw offset can not be allowed, start MCC */

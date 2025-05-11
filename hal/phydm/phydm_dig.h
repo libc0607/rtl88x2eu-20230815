@@ -89,6 +89,9 @@
 #define OFDM_FA_EXP_DURATION		12	/*us*/
 #define CCK_FA_EXP_DURATION		175	/*us*/
 
+/*==== [RSSI to IGI] =======================================*/
+#define RSSI_2_IGI(rssi) (rssi + 10)
+
 /*@--------------------Enum-----------------------------------*/
 enum phydm_dig_mode {
 	PHYDM_DIG_PERFORAMNCE_MODE	= 0,

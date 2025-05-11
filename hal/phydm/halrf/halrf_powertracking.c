@@ -180,7 +180,8 @@ void halrf_set_pwr_track(void *dm_void, u8 enable)
 			halrf_do_tssi(dm);
 		}
 	} else {
-		rf->rf_supportability = rf->rf_supportability & ~HAL_RF_TX_PWR_TRACK;
+		if (dm->support_ic_type != ODM_RTL8723F)
+			rf->rf_supportability = rf->rf_supportability & ~HAL_RF_TX_PWR_TRACK;
 		odm_clear_txpowertracking_state(dm);
 		halrf_do_tssi(dm);
 		halrf_calculate_tssi_codeword(dm);

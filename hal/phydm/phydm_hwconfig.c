@@ -428,7 +428,10 @@ odm_config_rf_with_header_file(struct dm_struct *dm,
 				else if (e_rf_path == RF_PATH_B)
 					READ_AND_CONFIG_MP(8723f, _radiob);
 			} else if (config_type == CONFIG_RF_TXPWR_LMT) {
-				READ_AND_CONFIG_MP(8723f, _txpwr_lmt);
+				if (dm->rfe_type == 12)
+					READ_AND_CONFIG_MP(8723f, _txpwr_lmt_type12);
+				else
+					READ_AND_CONFIG_MP(8723f, _txpwr_lmt);
 			}
 		}
 #endif
@@ -1404,12 +1407,16 @@ odm_config_bb_with_header_file(struct dm_struct *dm,
 #endif
 #if (RTL8723F_SUPPORT)
 		if (dm->support_ic_type == ODM_RTL8723F) {
-			if (config_type == CONFIG_BB_PHY_REG)
+			if (config_type == CONFIG_BB_PHY_REG) {
 				READ_AND_CONFIG_MP(8723f, _phy_reg);
-			else if (config_type == CONFIG_BB_AGC_TAB)
+			} else if (config_type == CONFIG_BB_AGC_TAB) {
 				READ_AND_CONFIG_MP(8723f, _agc_tab);
-			else if (config_type == CONFIG_BB_PHY_REG_PG)
-				READ_AND_CONFIG(8723f, _phy_reg_pg);
+			} else if (config_type == CONFIG_BB_PHY_REG_PG) {
+				if (dm->rfe_type == 12)
+					READ_AND_CONFIG(8723f, _phy_reg_pg_type12);
+				else
+					READ_AND_CONFIG(8723f, _phy_reg_pg);
+			}
 		}
 #endif
 #if (RTL8735B_SUPPORT)
@@ -1434,12 +1441,16 @@ odm_config_bb_with_header_file(struct dm_struct *dm,
 #endif
 #if (RTL8822E_SUPPORT)
 		if (dm->support_ic_type == ODM_RTL8822E) {
-			if (config_type == CONFIG_BB_PHY_REG)
+			if (config_type == CONFIG_BB_PHY_REG) {
 				READ_AND_CONFIG_MP(8822e, _phy_reg);
-			else if (config_type == CONFIG_BB_AGC_TAB)
+			} else if (config_type == CONFIG_BB_AGC_TAB) {
 				READ_AND_CONFIG_MP(8822e, _agc_tab);
-			else if (config_type == CONFIG_BB_PHY_REG_PG)
-				READ_AND_CONFIG(8822e, _phy_reg_pg);
+			} else if (config_type == CONFIG_BB_PHY_REG_PG) {
+				if (dm->rfe_type == 5)
+					READ_AND_CONFIG(8822e, _phy_reg_pg_type5);
+				else
+					READ_AND_CONFIG(8822e, _phy_reg_pg);
+			}
 		}
 #endif
 #if (RTL8812F_SUPPORT)

@@ -1662,10 +1662,6 @@ static void hw_var_set_mlme_disconnect(PADAPTER adapter)
 		/* disable update TSF1(CLINT0) */
 		rtw_iface_disable_tsf_update(adapter);
 
-		/* disable Port1's beacon function */
-		val8 = rtw_read8(adapter, REG_BCN_CTRL_CLINT0_8822E);
-		val8 &= ~BIT_CLI0_EN_BCN_FUNCTION_8822E;
-		rtw_write8(adapter, REG_BCN_CTRL_CLINT0_8822E, val8);
 	} else
 #endif
 	{

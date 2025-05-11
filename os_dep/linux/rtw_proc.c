@@ -4350,6 +4350,53 @@ ssize_t proc_set_btc_reduce_wl_txpwr(struct file *file, const char __user *buffe
 	return count;
 }
 
+ssize_t proc_set_btc_agc_tbl(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	PADAPTER padapter;
+	HAL_DATA_TYPE *hal_data;
+	u8 tmp[80] = {0};
+	u32 bt_linked = 0;
+	u32 agc_tbl_idx = 0;
+	u32 num;
+
+	padapter = (PADAPTER)rtw_netdev_priv(dev);
+	hal_data = GET_HAL_DATA(padapter);
+
+	if (NULL == buffer) {
+		RTW_INFO(FUNC_ADPT_FMT ": input buffer is NULL!\n",
+			 FUNC_ADPT_ARG(padapter));
+
+		return -EFAULT;
+	}
+
+	if (count < 1) {
+		RTW_INFO(FUNC_ADPT_FMT ": input length is 0!\n",
+			 FUNC_ADPT_ARG(padapter));
+
+		return -EFAULT;
+	}
+
+	num = count;
+	if (num > (sizeof(tmp) - 1))
+		num = (sizeof(tmp) - 1);
+
+	if (copy_from_user(tmp, buffer, num)) {
+		RTW_INFO(FUNC_ADPT_FMT ": copy buffer from user space FAIL!\n",
+			 FUNC_ADPT_ARG(padapter));
+
+		return -EFAULT;
+	}
+
+	num = sscanf(tmp, "%d %d", &bt_linked, &agc_tbl_idx);
+
+	/* currently only 8822E can support this operation */
+	if (IS_HARDWARE_TYPE_8822E(padapter) && (hal_data->EEPROMBluetoothCoexist == _TRUE))
+		rtw_btcoex_set_agc_tbl(padapter, bt_linked, agc_tbl_idx);
+
+	return count;
+}
+
 #endif /* CONFIG_BT_COEXIST */
 
 #ifdef CONFIG_MBSSID_CAM
@@ -6479,6 +6526,7 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
 	RTW_PROC_HDL_SSEQ("btreg_read", proc_get_btreg_read, proc_set_btreg_read),
 	RTW_PROC_HDL_SSEQ("btreg_write", proc_get_btreg_write, proc_set_btreg_write),
 	RTW_PROC_HDL_SSEQ("btc_reduce_wl_txpwr", proc_get_btc_reduce_wl_txpwr, proc_set_btc_reduce_wl_txpwr),
+	RTW_PROC_HDL_SSEQ("btc_set_agc", NULL, proc_set_btc_agc_tbl),
 #ifdef CONFIG_RF4CE_COEXIST
 	RTW_PROC_HDL_SSEQ("rf4ce_state", proc_get_rf4ce_state, proc_set_rf4ce_state),
 #endif
@@ -6546,7 +6594,13 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
 #ifdef CONFIG_WOW_KEEP_ALIVE_PATTERN
 	RTW_PROC_HDL_SSEQ("wow_keep_alive_info", proc_dump_wow_keep_alive_info, NULL),
 #endif /*CONFIG_WOW_KEEP_ALIVE_PATTERN*/
-
+#ifdef CONFIG_MDNS_OFFLOAD
+	RTW_PROC_HDL_SSEQ("wow_mdns_resp", proc_get_wow_mdns_resp, proc_set_wow_mdns_resp),
+	RTW_PROC_HDL_SSEQ("wow_mdns_match_criteria", proc_get_wow_mdns_match_criteria, proc_set_wow_mdns_match_criteria),
+	RTW_PROC_HDL_SSEQ("wow_mdns_passthru_list", proc_get_wow_mdns_passthru_list, proc_set_wow_mdns_passthru_list),
+	RTW_PROC_HDL_SSEQ("wow_mdns_offload_state", proc_get_wow_mdns_offload_state, proc_set_wow_mdns_offload_state),
+	RTW_PROC_HDL_SSEQ("wow_mdns_passthru_behavior", proc_get_wow_mdns_passthru_behavior, proc_set_wow_mdns_passthru_behavior),
+#endif
 #endif
 
 #ifdef CONFIG_GPIO_WAKEUP

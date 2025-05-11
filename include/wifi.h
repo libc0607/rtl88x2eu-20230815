@@ -853,6 +853,7 @@ struct ieee80211_ht_addt_info {
 } __attribute__((packed));
 #endif
 
+#define HT_CAPS_IE_LEN 26 /*struct rtw_ieee80211_ht_cap */
 struct HT_caps_element {
 	union {
 		struct {
@@ -863,7 +864,7 @@ struct HT_caps_element {
 			unsigned int	Beamforming_caps;
 			unsigned char	ASEL_caps;
 		} HT_cap_element;
-		unsigned char HT_cap[26];
+		unsigned char HT_cap[HT_CAPS_IE_LEN];
 	} u;
 } __attribute__((packed));
 

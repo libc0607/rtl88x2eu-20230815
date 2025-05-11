@@ -1232,6 +1232,10 @@ void rtw_set_ps_mode(PADAPTER padapter, u8 ps_mode, u8 smart_ps, u8 bcn_ant_mode
 				/* Download KIP info via RsvdPage if necessary */
 				lps_pg_hdl_id = LPS_PG_KIP_INFO_CFG;
 				rtw_hal_set_hwreg(padapter, HW_VAR_LPS_PG_HANDLE, (u8 *)(&lps_pg_hdl_id));
+				#ifdef CONFIG_RTL8822E
+				lps_pg_hdl_id = LPS_PG_DIS_BYPASS_RFK;
+				rtw_hal_set_hwreg(padapter, HW_VAR_LPS_PG_HANDLE, (u8 *)(&lps_pg_hdl_id));
+				#endif
 			}
 #endif
 
@@ -1300,6 +1304,10 @@ void rtw_set_ps_mode(PADAPTER padapter, u8 ps_mode, u8 smart_ps, u8 bcn_ant_mode
 			if (pwrpriv->lps_level == LPS_PG) {
 				lps_pg_hdl_id = LPS_PG_PHYDM_DIS;
 				rtw_hal_set_hwreg(padapter, HW_VAR_LPS_PG_HANDLE, (u8 *)(&lps_pg_hdl_id));
+				#ifdef CONFIG_RTL8822E
+				lps_pg_hdl_id = LPS_PG_EN_BYPASS_RFK;
+				rtw_hal_set_hwreg(padapter, HW_VAR_LPS_PG_HANDLE, (u8 *)(&lps_pg_hdl_id));
+				#endif
 			}
 #endif
 
@@ -2545,6 +2553,10 @@ void rtw_init_pwrctrl_priv(PADAPTER padapter)
 	rtw_wow_war_mdns_parms_reset(padapter, _TRUE);
 #endif /* defined(CONFIG_OFFLOAD_MDNS_V4) || defined(CONFIG_OFFLOAD_MDNS_V6) */
 #endif /* CONFIG_WAR_OFFLOAD */
+#ifdef CONFIG_MDNS_OFFLOAD
+	_rtw_memset(&pwrctrlpriv->mdns_ofld_info, 0,
+		    sizeof(struct rtw_mdns_ofld_info));
+#endif
 #endif /* CONFIG_WOWLAN */
 
 #ifdef CONFIG_LPS_POFF
@@ -3239,4 +3251,5 @@ void rtw_ssmps_leave(_adapter *adapter, struct sta_info *sta)
 	sta->cmn.sm_ps = SM_PS_DISABLE;
 	_rtw_ssmps(adapter, sta);
 }
+
 

@@ -1784,7 +1784,7 @@ void Supported_rate_infra_ap(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 		return;
 
 	for (i = 0 ; i < pIE->Length; i++)
-		pmlmeinfo->SupportedRates_infra_ap[i] = (pIE->data[i]);
+		pmlmeinfo->SupportedRates_infra_ap[i] = *(pIE->data + i);
 
 }
 
@@ -1803,7 +1803,7 @@ void Extended_Supported_rate_infra_ap(_adapter *padapter, PNDIS_802_11_VARIABLE_
 				break;
 		}
 		for (j = 0; j < pIE->Length; j++)
-			pmlmeinfo->SupportedRates_infra_ap[i+j] = (pIE->data[j]);
+			pmlmeinfo->SupportedRates_infra_ap[i+j] = *(pIE->data + j);
 	}
 
 }
@@ -1840,7 +1840,7 @@ void HT_caps_handler_infra_ap(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 
 	/*copy MCS_SET*/
 	for (i = 3; i < 19; i++)
-		phtpriv->MCS_set_infra_ap[i-3] = (pIE->data[i]);
+		phtpriv->MCS_set_infra_ap[i-3] = *(pIE->data + i);
 
 	/*get number of stream from mcs set*/
 	HT_get_ss_from_mcs_set(phtpriv->MCS_set_infra_ap, &phtpriv->Rx_ss_infra_ap);
@@ -1883,6 +1883,9 @@ void HT_caps_handler(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 
 	if (phtpriv->ht_option == _FALSE)
 		return;
+		
+	if (pIE->Length > HT_CAPS_IE_LEN)
+		return;
 
 	pmlmeinfo->HT_caps_enable = 1;
 
@@ -1890,21 +1893,21 @@ void HT_caps_handler(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 		if (i != 2) {
 			/*	Commented by Albert 2010/07/12 */
 			/*	Got the endian issue here. */
-			pmlmeinfo->HT_caps.u.HT_cap[i] &= (pIE->data[i]);
+			pmlmeinfo->HT_caps.u.HT_cap[i] &= *(pIE->data + i);
 		} else {
 			/* AMPDU Parameters field */
 
 			/* Get MIN of MAX AMPDU Length Exp */
-			if ((pmlmeinfo->HT_caps.u.HT_cap_element.AMPDU_para & 0x3) > (pIE->data[i] & 0x3))
-				max_AMPDU_len = (pIE->data[i] & 0x3);
+                        if ((pmlmeinfo->HT_caps.u.HT_cap_element.AMPDU_para & 0x3) > (*(pIE->data + i) & 0x3))
+				max_AMPDU_len = (*(pIE->data + i) & 0x3);
 			else
 				max_AMPDU_len = (pmlmeinfo->HT_caps.u.HT_cap_element.AMPDU_para & 0x3);
 
 			/* Get MAX of MIN MPDU Start Spacing */
-			if ((pmlmeinfo->HT_caps.u.HT_cap_element.AMPDU_para & 0x1c) > (pIE->data[i] & 0x1c))
+			if ((pmlmeinfo->HT_caps.u.HT_cap_element.AMPDU_para & 0x1c) > (*(pIE->data + i) & 0x1c))
 				min_MPDU_spacing = (pmlmeinfo->HT_caps.u.HT_cap_element.AMPDU_para & 0x1c);
 			else
-				min_MPDU_spacing = (pIE->data[i] & 0x1c);
+				min_MPDU_spacing = (*(pIE->data + i) & 0x1c);
 
 			pmlmeinfo->HT_caps.u.HT_cap_element.AMPDU_para = max_AMPDU_len | min_MPDU_spacing;
 		}
@@ -2247,7 +2250,7 @@ int check_ielen(u8 *start, uint len)
 	return _TRUE;
 }
 
-int validate_beacon_len(u8 *pframe, u32 len)
+int validate_bcn_and_probe_rsp_len(u8 *pframe, u32 len)
 {
 	u8 ie_offset = _BEACON_IE_OFFSET_ + sizeof(struct rtw_ieee80211_hdr_3addr);
 
@@ -2802,7 +2805,15 @@ int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 		} else {
 			RTW_INFO("csa : our bw/offset is same as AP\n");
 		}
-
+#if defined(CONFIG_IOCTL_CFG80211) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
+		{
+			u8 ht_option = 0;
+#ifdef CONFIG_80211N_HT
+			ht_option = pmlmepriv->htpriv.ht_option;
+#endif
+			rtw_cfg80211_ch_switch_notify(Adapter, c_ch, c_bw, c_offset, ht_option, 0);
+		}
+#endif /* defined(CONFIG_IOCTL_CFG80211) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)) */
 		rtw_iqk_cmd(Adapter, 0);
 		rtw_csa_sta_update_cap_cmd(Adapter);
 
@@ -4755,6 +4766,10 @@ void rtw_wow_pattern_sw_reset(_adapter *adapter)
 		pwrctrlpriv->wowlan_pattern_idx = DEFAULT_PATTERN_NUM;
 	else
 		pwrctrlpriv->wowlan_pattern_idx = 0;
+		
+#ifdef CONFIG_GOOGLE_CAST_WAKEUP
+	pwrctrlpriv->wowlan_pattern_idx += GOOGLE_CAST_PATTERN_NUM;
+#endif
 
 	for (i = 0 ; i < MAX_WKFM_CAM_NUM; i++) {
 		_rtw_memset(pwrctrlpriv->patterns[i].content, '\0', sizeof(pwrctrlpriv->patterns[i].content));
@@ -4762,6 +4777,127 @@ void rtw_wow_pattern_sw_reset(_adapter *adapter)
 		pwrctrlpriv->patterns[i].len = 0;
 	}
 }
+#ifdef CONFIG_GOOGLE_CAST_WAKEUP
+#define is_zero_ip_addr(ip)	\
+	((ip[0] == 0x00) && (ip[1] == 0x00) && \
+	(ip[2] == 0x00) && (ip[3] == 0x00))
+#define rtw_user_wow_patten_elem(len, array, args...)	\
+	{.conts_len = len,  .pconts = (u8[len]){array, ##args}}
+
+void rtw_set_google_cast_mdns_wow_pattern(_adapter *padapter, u8 index)
+{
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
+	u8 eth_dest_mac[ETH_ALEN] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0xfb};
+	u8 eth_src_mac[ETH_ALEN] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+	u8 eth_protocol[2] = {0x08, 0x00};
+	u8 ip_ver = 0x45;
+	u8 ip_protocol = 0x11;
+	u8 src_ip[RTW_IP_ADDR_LEN] = {0x0, 0x0, 0x0, 0x0};
+	u8 dest_ip[RTW_IP_ADDR_LEN] = {0x0, 0x0, 0x0, 0x0};
+	u8 src_port[2] = {0x00, 0x00};
+	u8 dest_port[2] = {0x14, 0xe9};
+	u8 *ptr;
+	int i = 0;
+	struct pattern_cont_t {
+		u8 conts_len;
+		u8 *pconts;
+	};
+	struct pattern_cont_t conts[] = {
+		rtw_user_wow_patten_elem(0x51, /*_%9E5E7C8F47989526C9BCD95D24084F6F0B27C5ED._sub._googlecast._tcp.local*/
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0x5F, 0x25, 0x39, 0x45, 0x35,
+				0x45, 0x37, 0x43, 0x38, 0x46, 0x34, 0x37, 0x39, 0x38, 0x39, 0x35, 0x32, 0x36, 0x43, 0x39, 0x42,
+				0x43, 0x44, 0x39, 0x35, 0x44, 0x32, 0x34, 0x30, 0x38, 0x34, 0x46, 0x36, 0x46, 0x30, 0x42, 0x32,
+				0x37, 0x43, 0x35, 0x45, 0x44, 0x04, 0x5F, 0x73, 0x75, 0x62, 0x0B, 0x5F, 0x67, 0x6F, 0x6F, 0x67,
+				0x6C, 0x65, 0x63, 0x61, 0x73, 0x74, 0x04, 0x5F, 0x74, 0x63, 0x70, 0x05, 0x6C, 0x6F, 0x63, 0x61,
+				0x6C),
+		rtw_user_wow_patten_elem(0x21, /*_googlecast._tcp.local*/
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0B, 0x5F, 0x67, 0x6F, 0x6F, 0x67,
+				0x6C, 0x65, 0x63, 0x61, 0x73, 0x74, 0x04, 0x5F, 0x74, 0x63, 0x70, 0x05, 0x6C, 0x6F, 0x63, 0x61,
+				0x6C),
+		rtw_user_wow_patten_elem(0x30, /*_233637DE._sub._googlecast._tcp.local*/
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x5F, 0x32, 0x33, 0x33, 0x36,
+				0x33, 0x37, 0x44, 0x45, 0x04, 0x5F, 0x73, 0x75, 0x62, 0x0B, 0x5F, 0x67, 0x6F, 0x6F, 0x67, 0x6C,
+				0x65, 0x63, 0x61, 0x73, 0x74, 0x04, 0x5F, 0x74, 0x63, 0x70, 0x05, 0x6C, 0x6F, 0x63, 0x61, 0x6C),
+	};
+	struct pattern_cont_t masks[] = {
+		rtw_user_wow_patten_elem(MAX_WKFM_SIZE,
+				0x3f, 0x70, 0x80, 0x00, 0x30, 0x30, 0xc0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1f),
+		rtw_user_wow_patten_elem(10,
+				0x3f, 0x70, 0x80, 0x00, 0x30, 0x30, 0xc0, 0xff, 0xff, 0x1f),
+		rtw_user_wow_patten_elem(12,
+				0x3f, 0x70, 0x80, 0x00, 0x30, 0x30, 0xc0, 0xff, 0xff, 0xff, 0xff, 0x0f),
+	};
+
+	if (index >= MAX_WKFM_CAM_NUM)
+		return;
+
+	for (i = 0 ; i < GOOGLE_CAST_PATTERN_NUM ; i++){
+		if (conts[i].conts_len >= MAX_WKFM_PATTERN_SIZE)
+			continue;
+
+		ptr = pwrpriv->patterns[index].content;
+		if (!is_zero_mac_addr(eth_dest_mac))
+			_rtw_memcpy(ptr, eth_dest_mac, ETH_ALEN);
+		ptr += ETH_ALEN;
+		pwrpriv->patterns[index].len += ETH_ALEN;
+
+		if (!is_zero_mac_addr(eth_src_mac))
+			_rtw_memcpy(ptr, eth_src_mac, ETH_ALEN);
+		ptr += ETH_ALEN;
+		pwrpriv->patterns[index].len += ETH_ALEN;
+
+		_rtw_memcpy(ptr, eth_protocol, 2);
+		ptr += 2;
+		pwrpriv->patterns[index].len += 2;
+
+		*ptr = ip_ver;
+		ptr += 1;
+		pwrpriv->patterns[index].len += 1;
+
+		/*padding*/
+		ptr += 8;
+		pwrpriv->patterns[index].len += 8;
+
+		*ptr = ip_protocol;
+		ptr += 1;
+		pwrpriv->patterns[index].len += 1;
+
+		/*padding*/
+		ptr += 2;
+		pwrpriv->patterns[index].len += 2;
+
+		if (!is_zero_ip_addr(src_ip))
+			_rtw_memcpy(ptr, src_ip, RTW_IP_ADDR_LEN);
+		ptr += RTW_IP_ADDR_LEN;
+		pwrpriv->patterns[index].len += RTW_IP_ADDR_LEN;
+
+
+		if (!is_zero_ip_addr(dest_ip))
+			_rtw_memcpy(ptr, dest_ip, RTW_IP_ADDR_LEN);
+		ptr += RTW_IP_ADDR_LEN;
+		pwrpriv->patterns[index].len += RTW_IP_ADDR_LEN;
+
+		_rtw_memcpy(ptr, src_port, 2);
+		ptr += 2;
+		pwrpriv->patterns[index].len += 2;
+
+		_rtw_memcpy(ptr, dest_port, 2);
+		ptr += 2;
+		pwrpriv->patterns[index].len += 2;
+
+		/*padding*/
+		ptr += 6;
+		pwrpriv->patterns[index].len += 6;
+
+		_rtw_memcpy(ptr, conts[i].pconts, conts[i].conts_len);
+		pwrpriv->patterns[index].len += conts[i].conts_len;
+
+		_rtw_memcpy(pwrpriv->patterns[index].mask, masks[i].pconts, masks[i].conts_len);
+
+		index--;
+	}
+}
+#endif
 
 u8 rtw_set_default_pattern(_adapter *adapter)
 {
@@ -4781,16 +4917,20 @@ u8 rtw_set_default_pattern(_adapter *adapter)
 
 	u8 *target = NULL;
 
-	if (pwrpriv->default_patterns_en == _FALSE)
+	if (pwrpriv->wowlan_pattern_idx == 0)
 		return 0;
 
-	for (index = 0 ; index < DEFAULT_PATTERN_NUM ; index++) {
+	for (index = 0 ; index < pwrpriv->wowlan_pattern_idx ; index++) {
 		_rtw_memset(pwrpriv->patterns[index].content, 0,
 			    sizeof(pwrpriv->patterns[index].content));
 		_rtw_memset(pwrpriv->patterns[index].mask, 0,
 			    sizeof(pwrpriv->patterns[index].mask));
 		pwrpriv->patterns[index].len = 0;
 	}
+#ifdef CONFIG_GOOGLE_CAST_WAKEUP
+	if (pwrpriv->default_patterns_en == _FALSE)
+		goto set_google_cast_pattern;
+#endif
 
 	/*TCP/ICMP unicast*/
 	for (index = 0 ; index < DEFAULT_PATTERN_NUM ; index++) {
@@ -4896,6 +5036,12 @@ u8 rtw_set_default_pattern(_adapter *adapter)
 #endif
 		}
 	}
+	
+#ifdef CONFIG_GOOGLE_CAST_WAKEUP
+set_google_cast_pattern:
+	rtw_set_google_cast_mdns_wow_pattern(adapter, pwrpriv->wowlan_pattern_idx-1);
+	index = pwrpriv->wowlan_pattern_idx;
+#endif
 	return index;
 }
 
@@ -5242,6 +5388,134 @@ void rtw_wow_war_mdns_parms_reset(_adapter *adapter, u8 is_set_default)
 
 #endif /* defined(CONFIG_OFFLOAD_MDNS_V4) || defined(CONFIG_OFFLOAD_MDNS_V6) */
 #endif /* CONFIG_WAR_OFFLOAD */
+
+#ifdef CONFIG_MDNS_OFFLOAD
+static struct rtw_mdns_resp_entry *
+_rtw_get_mdns_resp_entry(_adapter *padapter, u8 index)
+{
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_ofld_info *ofld_info = &pwrctl->mdns_ofld_info;
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+
+	if (index < MAX_MDNS_RESP_NUM)
+		resp_entry = &ofld_info->resp_entry[index];
+
+	return resp_entry;
+}
+
+int rtw_wow_add_mdns_resp(_adapter *padapter, u8 index, u8 *resp_content, u16 content_len)
+{
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+
+	resp_entry = _rtw_get_mdns_resp_entry(padapter, index);
+	if (resp_entry == NULL)
+		return _FAIL;
+
+	_rtw_memcpy(resp_entry->content, resp_content, content_len);
+	resp_entry->content_len = content_len;
+
+	return _SUCCESS;
+}
+
+int rtw_wow_del_mdns_resp(_adapter *padapter, u8 index)
+{
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+
+	resp_entry = _rtw_get_mdns_resp_entry(padapter, index);
+	if (resp_entry == NULL)
+		return _FAIL;
+
+	_rtw_memset(resp_entry, 0, sizeof(struct rtw_mdns_resp_entry));
+
+	return _SUCCESS;
+}
+
+int rtw_wow_get_mdns_resp_ent(_adapter *padapter, u8 index, struct rtw_mdns_resp_entry **resp_entry)
+{
+	*resp_entry = _rtw_get_mdns_resp_entry(padapter, index);
+	if (*resp_entry == NULL)
+		return _FAIL;
+
+	return _SUCCESS;
+}
+
+int rtw_wow_add_mdns_match_crit(_adapter *padapter, u8 index, u16 match_type, u16 name_offset, u16 name_len)
+{
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+	struct rtw_mdns_match_criteria *match_ct = NULL;
+
+	resp_entry = _rtw_get_mdns_resp_entry(padapter, index);
+	if (resp_entry == NULL)
+		return _FAIL;
+
+	if (resp_entry->match_ct_num == MAX_MDNS_MATCH_CRITERIA_NUM)
+		return _FAIL;
+
+	match_ct = &resp_entry->match_ct[resp_entry->match_ct_num];
+
+	match_ct->name_offset = name_offset;
+	match_ct->type = match_type;
+	match_ct->name_len = name_len;
+
+	resp_entry->match_ct_num += 1;
+
+	return _SUCCESS;
+}
+
+int rtw_wow_del_mdns_match_crit(_adapter *padapter, u8 index)
+{
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+	struct rtw_mdns_match_criteria *match_ct = NULL;
+
+	resp_entry = _rtw_get_mdns_resp_entry(padapter, index);
+	if (resp_entry == NULL)
+		return _FAIL;
+
+	resp_entry->match_ct_num = 0;
+	_rtw_memset(resp_entry->match_ct, 0, sizeof(resp_entry->match_ct));
+
+	return _SUCCESS;
+}
+
+int rtw_wow_add_mdns_passthru_name(_adapter *padapter, u8 *name, u8 name_len)
+{
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_ofld_info *ofld_info = &pwrctl->mdns_ofld_info;
+	struct rtw_mdns_passthru_list *passthru_list = &ofld_info->passthru_list;
+	struct rtw_mdns_passthru_name *passthru_name = NULL;
+
+	if (passthru_list->passthru_name_num == MAX_MDNS_PASSTHRU_NAME_NUM)
+		return _FAIL;
+
+
+	passthru_name = &passthru_list->passthru_name[passthru_list->passthru_name_num];
+	_rtw_memcpy(passthru_name->name, name, name_len);
+	passthru_name->name_len = name_len;
+
+	passthru_list->passthru_name_num += 1;
+
+	return _SUCCESS;
+}
+
+void rtw_wow_clr_mdns_passthru_name(_adapter *padapter)
+{
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_ofld_info *ofld_info = &pwrctl->mdns_ofld_info;
+	struct rtw_mdns_passthru_list *passthru_list = &ofld_info->passthru_list;
+
+	passthru_list->passthru_name_num = 0;
+	_rtw_memset(passthru_list->passthru_name, 0,
+		    sizeof(struct rtw_mdns_passthru_name) * MAX_MDNS_PASSTHRU_NAME_NUM);
+}
+
+void rtw_wow_get_mdns_passthru_list(_adapter *padapter, struct rtw_mdns_passthru_list **passthru_list)
+{
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_ofld_info *ofld_info = &pwrctl->mdns_ofld_info;
+
+	*passthru_list = &ofld_info->passthru_list;
+}
+#endif
 #endif /* CONFIG_WOWLAN */
 
 inline bool _rtw_wow_chk_cap(_adapter *adapter, u8 cap)

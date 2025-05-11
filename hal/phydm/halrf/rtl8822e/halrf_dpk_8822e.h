@@ -81,6 +81,7 @@ void dpk_c2h_report_transfer_8822e(
 	u8	*buf,
 	u8	buf_size);
 
+void ex_dpk_info_by_8822e(void *dm_void);
 #endif /* RTL8822E_SUPPORT */
 
 #endif /*#ifndef __HALRF_DPK_8822E_H__*/

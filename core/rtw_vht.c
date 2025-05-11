@@ -826,6 +826,9 @@ u32	rtw_build_vht_cap_ie(_adapter *padapter, u8 *pbuf)
 	struct vht_priv *pvhtpriv = &pmlmepriv->vhtpriv;
 	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
+#if defined(CONFIG_USB_HCI) && defined(RTW_RX_AGGREGATION)
+	HAL_DATA_TYPE *hal = GET_HAL_DATA(padapter);
+#endif
 
 	pcap = pvhtpriv->vht_cap;
 	_rtw_memset(pcap, 0, 32);
@@ -850,6 +853,15 @@ u32	rtw_build_vht_cap_ie(_adapter *padapter, u8 *pbuf)
 		RTW_INFO("[VHT] Declare supporting MAX MPDU len = 3895 bytes\n");
 	} else
 		RTW_ERR("[VHT] Error!! Available RX buf size < 3895 bytes\n");
+
+#if defined(CONFIG_USB_HCI) && defined(RTW_RX_AGGREGATION)
+	if (hal->rxagg_mode ==  RX_AGG_USB && pregistrypriv->rx_ampdu_amsdu == 1) {
+		if (GET_VHT_CAPABILITY_ELE_MAX_MPDU_LENGTH(pcap) != 0) {
+			SET_VHT_CAPABILITY_ELE_MAX_MPDU_LENGTH(pcap, 0);
+			RTW_INFO("[VHT] reduce MSDU size to 3895 bytes\n");
+		}
+	}
+#endif
 
 	/* B2 B3 Supported Channel Width Set */
 	if (hal_chk_bw_cap(padapter, BW_CAP_160M) && REGSTY_IS_BW_5G_SUPPORT(pregistrypriv, CHANNEL_WIDTH_160)) {
@@ -1278,3 +1290,4 @@ void rtw_reattach_vht_ies(_adapter *padapter, WLAN_BSSID_EX *pnetwork)
 }
 #endif /* CONFIG_AP_MODE */
 #endif /* CONFIG_80211AC_VHT */
+

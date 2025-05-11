@@ -80,6 +80,9 @@
 /*@============================================================*/
 /*@Definition */
 /*@============================================================*/
+
+#define HALRF_DZ_LOG
+
 /*IQK version*/
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
 #define IQK_VER_8188E "0x14"
@@ -186,7 +189,7 @@
 #define DPK_VER_8710B "NONE"
 #define DPK_VER_8723D "NONE"
 #define DPK_VER_8822B "NONE"
-#define DPK_VER_8822C "0x20"
+#define DPK_VER_8822C "0x21"
 #define DPK_VER_8821C "NONE"
 #define DPK_VER_8192F "0x13"
 #define DPK_VER_8198F "0x0e"
@@ -196,7 +199,7 @@
 #define DPK_VER_8197G "0x0b"
 #define DPK_VER_8814C "0x01"
 #define DPK_VER_8735B "0x0b"
-#define DPK_VER_8822E "0x0e"
+#define DPK_VER_8822E "0x11"
 
 /*RFK_INIT version*/
 #define RFK_INIT_VER_8822B "0x8"
@@ -223,7 +226,7 @@
 
 /*RXDCK version*/
 #define RXDCK_VER_8735B "0x6"
-#define RXDCK_VER_8822E "0x4"
+#define RXDCK_VER_8822E "0x5"
 
 /*RCK version*/
 #define RCK_VER_8735B "0x1"
@@ -533,6 +536,7 @@ enum halrf_dbg_comp {
 	DBG_RF_RXDCK = BIT(RF08_RXDCK),
 	DBG_RF_RFK = BIT(RF09_RFK),
 	DBG_RF_RXSPURK = BIT(RF11_RX_SPURK),
+	DBG_RF_DZ_LOG = BIT(28),
 	DBG_RF_MP = BIT(29),
 	DBG_RF_TMP = BIT(30),
 	DBG_RF_INIT = BIT(31)
@@ -573,6 +577,26 @@ enum halrf_k_segment_time {
 	SEGMENT_10MS = 10, /*10ms*/
 	SEGMENT_30MS = 30, /*30ms*/
 	SEGMENT_50MS = 50, /*50ms*/
+};
+
+enum halrf_dack_dz{
+	DZ_ADDCK0_TIMEOUT	= BIT(0),
+	DZ_DADCK0_TIMEOUT	= BIT(1),
+	DZ_MSBK0_TIMEOUT	= BIT(2),
+	DZ_ADDCK1_TIMEOUT	= BIT(16),
+	DZ_DADCK1_TIMEOUT	= BIT(17),
+	DZ_MSBK1_TIMEOUT	= BIT(18),
+};
+
+enum halrf_iqk_dz{
+	DZ_IQK_ALIMTK_TIMEOUT1	= BIT(0),
+	DZ_IQK_ALIMTK_TIMEOUT2	= BIT(1),
+	DZ_LOK_ALIMTK	= BIT(2),	
+	DZ_TXIQK_ALIMTK	= BIT(3),	
+	DZ_RXIQK_ALIMTK = BIT(4),	
+	DZ_TXXYM_ALIMTK = BIT(5),
+	DZ_RXXYM_ALIMTK = BIT(6),
+	DZ_RXAGC_ALIMTK = BIT(7),
 };
 
 #define POWER_INDEX_DIFF 4
@@ -631,9 +655,13 @@ struct _halrf_txgapk_info {
 struct _halrf_rxdck_info {
 	boolean 	is_rxdck_timeout;
 	boolean		is_rxdck_off;
+	boolean		need_rek;
 	u8		rxdck_ch;
 	u8		rxdck_band;
 	u8		rxdck_bw;
+	u32		rxdck_cnt;
+	u32		bt_dck_val[8];
+	u8		bt_dck_reload;
 };
 
 struct _halrf_afedck_info {
@@ -648,6 +676,145 @@ struct _halrf_rxspurk_info {
 	u32 final_psd_idx;
 	boolean nbi_csi_en;
 };
+struct halrf_dack_rpt {
+	u8 msbk_d[2][2][16];
+	u8 dadck_d[2][2];		/*path/IQ*/
+	u16 addck_d[2][2];	/*path/IQ*/
+	u16 biask_d[2][2];		/*path/IQ*/
+	u8 addck_timeout_s0: 1;
+	u8 addck_timeout_s1: 1;
+	u8 dadck_timeout_s0: 1;
+	u8 dadck_timeout_s1: 1;
+	u8 msbk_timeout_s0: 1;
+	u8 msbk_timeout_s1: 1;
+	u8 dack_fail: 1;
+	u8 rsvd: 1;
+};
+
+struct halrf_dack_info {
+	boolean dack_done;
+	u8 msbk_d[2][2][16];
+	u8 dadck_d[2][2];		/*path/IQ*/
+	u16 addck_d[2][2];	/*path/IQ*/
+	u16 biask_d[2][2];		/*path/IQ*/
+	u32 dack_cnt;
+	u32 dack_time;
+	boolean addck_timeout[2];
+	boolean dadck_timeout[2];
+	boolean msbk_timeout[2];
+	boolean dack_fail;
+	struct halrf_dack_rpt dack_rpt;
+};
+
+struct halrf_rt_rpt {
+	u32 ch_info[10][2][2]; //last10 /cv
+};
+
+struct halrf_rfk_dz_rpt {
+	u32 iqk_dz_code;
+	u32 dpk_dz_code;
+	u32 dpk_rxsram[KPATH][512];
+	u32 dpk_pas[KPATH][64];
+	u32 dack_dz_code;
+	u32 rxdck_dz_code;
+	u32 txgapk_dz_code;
+//IQK
+	u32 iqk_dz_lok[2][4]; //path/value
+	u32 iqk_dz_tx_xym[2][4];//path/value
+	u32 iqk_dz_rx_xym[2][4];//path/value
+	u32 iqk_dz_rx_rxbb[2][4];//path/value
+	u32 iqk_dz_s0_rxsram[4][1280]; //group/value
+	u32 iqk_dz_s1_rxsram[4][1280]; //group/value
+//TXGAPK
+	u32 txgapk_dz_max_nctl_cnt; 
+	s32 txgapk_dz_track_d[2][17];
+	s32 txgapk_dz_power_d[2][17];
+};
+
+struct halrf_ex_dz_info {
+	struct halrf_rt_rpt rf_rt_rpt;
+	struct halrf_rfk_dz_rpt rfk_dz_rpt;
+};
+
+struct halrf_iqk_info {
+	boolean lok_cor_fail[2][NUM]; /*channel/path */
+	boolean lok_fin_fail[2][NUM]; /*channel/path */
+	boolean iqk_tx_fail[2][NUM]; /*channel/path */
+	boolean iqk_rx_fail[2][NUM]; /*channel/path */
+	u32 iqk_cnt;
+	u32 iqk_fail_cnt;
+	boolean segment_iqk;
+	boolean is_iqk_enable;
+	boolean is_iqk_init;
+	boolean is_reload;
+	u32 iqk_channel[2];
+	u8 iqk_band[NUM];
+	u8 iqk_ch[NUM];
+	u8 iqk_bw[NUM];
+	u8 kcount;
+	u8 iqk_times;
+	u8 rxiqk_step;
+	u8 iqk_step;
+	u8 version;
+	u32 lok_idac[2][NUM];
+	u32 lok_vbuf[2][NUM];
+	u32 iqc_gain;
+	u32 rftxgain[NUM];
+	u32 rfrxgain[NUM];
+	u32 nb_txcfir[NUM];
+	u32 nb_rxcfir[NUM];
+	u32 rximr[NUM];
+	u32 syn1to2;
+	u32 bp_txkresult[2];
+	u32 bp_rxkresult[2];
+	u32 bp_lokresult[2];
+	u32 bp_iqkenable[2];
+	u32 reload_cnt;
+	boolean is_wb_txiqk[2];
+	boolean is_wb_rxiqk[2];
+	boolean is_nbiqk;
+	boolean iqk_fft_en;
+	boolean iqk_xym_en;
+	boolean iqk_sram_en;
+	boolean iqk_cfir_en;
+	u8 ther_avg[2][8];	/*path*/
+	u8 ther_avg_idx;
+	u8 thermal[2];
+	boolean thermal_rek_en;
+	u8 iqk_mcc_ch[2][NUM];
+	u8 iqk_table_idx[NUM];
+	boolean is_fw_iqk;
+	u32	time;
+	u32 lok_0x58[2];
+	u32 lok_0x5c[2];
+	u32 lok_0x7c[2];	
+};
+
+struct rfk_location {
+	enum odm_band_type cur_band;
+	enum channel_width cur_bw;
+	u8 cur_ch;
+};
+
+
+struct halrf_gapk_info {
+
+	boolean is_gapk_init;
+	boolean is_gapk_enable;
+	u8 ch[4];
+	s32 track_d[2][17];
+	s32 track_ta[2][17];
+	s32 power_d[2][17];
+	s32 power_ta[2][17];
+	u32 txgapk_time;
+	boolean	is_txgapk_ok;
+	u32     r0x8010[2]; /* before and after txgapk */
+	u32     txgapk_chk_cnt[2][3][2]; /* path */ /* track pwr iqkbk*/ /* 0xbff8 0x80fc*/
+	u8 txgapk_mcc_ch[2]; /* channel */
+	u8 txgapk_table_idx;
+	boolean d_bnd_ok;
+};
+
 
 /*@============================================================*/
 /*@ structure */
@@ -666,9 +833,9 @@ struct _hal_rf_ {
 	u8 dpk_en; /*Enable Function DPK OFF/ON = 0/1*/
 	boolean dpk_done;
 	u64 dpk_progressing_time;
+	u64 rxdck_progressing_time;
 	u64 iqk_progressing_time;
 	u64 txgapk_progressing_time;
-	u64 rxdck_progressing_time;
 	u64 rxspurk_progressing_time;
 	u32 fw_ver;
 
@@ -683,6 +850,7 @@ struct _hal_rf_ {
 	boolean is_txgapk_in_progress;
 	boolean is_rxspurk_in_progress;
 	boolean is_tssi_mode[KPATH];
+	boolean is_connect_k;
 
 	u8 *mp_rate_index;
 	u32 *manual_rf_supportability;
@@ -702,6 +870,15 @@ struct _hal_rf_ {
 	struct _halrf_rxdck_info halrf_rxdck_info;
 	struct _halrf_afedck_info halrf_afedck_info;
 	struct _halrf_rxspurk_info halrf_rxspurk_info;
+	struct halrf_iqk_info	iqk;
+	struct halrf_dack_info	dack;
+	struct halrf_gapk_info	gapk;
+	struct dm_dpk_info	dpk;
+#ifdef HALRF_DZ_LOG
+	struct halrf_rt_rpt rf_rt_rpt;
+	struct halrf_rfk_dz_rpt rfk_dz_rpt;
+	struct halrf_ex_dz_info ex_dz_info;
+#endif
 	u8 power_track_type;
 	u8 mp_pwt_type;
 	u8 pre_band_type;
@@ -950,6 +1127,11 @@ void halrf_rxspurk_debug_cmd(void *dm_void, char input[][16], u32 *_used,
 
 void halrf_pwr_trk_debug_cmd(void *dm_void, char input[][16], u32 *_used,
 				char *output, u32 *_out_len);
+				
+void halrf_dz_dbg_cmd(void *dm_void, char input[][16], u32 *_used, 
+				char *output, u32 *_out_len);
+
+void halrf_rpt_rt_rfk_info(void *dm_void);
 
 void halrf_xtal_thermal_track(void *dm_void);
 

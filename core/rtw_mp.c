@@ -150,7 +150,8 @@ static void _init_mp_priv_(struct mp_priv *pmp_priv)
 	pmp_priv->bloadefusemap = _FALSE;
 	pmp_priv->brx_filter_beacon = _FALSE;
 	pmp_priv->mplink_brx = _FALSE;
-
+	
+        pmp_priv->blim_pkt_intvl = _TRUE;
 	pnetwork = &pmp_priv->mp_network.network;
 	_rtw_memcpy(pnetwork->MacAddress, pmp_priv->network_macaddr, ETH_ALEN);
 
@@ -235,7 +236,11 @@ s32 init_mp_priv(PADAPTER padapter)
 	pmppriv->tx.stop = 1;
 	pmppriv->bSetTxPower = 0;		/*for  manually set tx power*/
 	pmppriv->bTxBufCkFail = _FALSE;
+#ifdef CONFIG_RTL8822E
+	pmppriv->pktInterval = 2000;
+#else
 	pmppriv->pktInterval = 0;
+#endif
 	pmppriv->pktLength = 1000;
 	pmppriv->bprocess_mp_mode = _FALSE;
 	pmppriv->efuse_update_file= _FALSE;

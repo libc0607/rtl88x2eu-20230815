@@ -6022,7 +6022,473 @@ int proc_dump_wow_keep_alive_info(struct seq_file *m, void *v) {
 	return 0;
 }
 #endif /* CONFIG_WOW_KEEP_ALIVE_PATTERN*/
+#ifdef CONFIG_MDNS_OFFLOAD
+#define MDNS_RESP_PROC_BUF_LEN 1027 /* MAX_MDNS_RESP_LEN * 2 + 3 */
+#define MDNS_RESP_STR_BUF_LEN 1025  /* MAX_MDNS_RESP_LEN * 2 + 1 */
+#define MDNS_PASSTHRU_PROC_BUF_LEN 511 /* MAX_MDNS_DOMAIN_NAME_LEN * 2 + 1 */
+static void _parse_mdns_domain_name(struct seq_file *m, u8 *buf, u16 buf_len, u16 cur_offset, u8 *name_len)
+{
+	u8 name[255] = {0};
+	u8 lable_remain_len = 0;
+	u16 name_ptr = 0;
+	u16 len = 0;
 
+	while (1) {
+		if (cur_offset >= buf_len || len >= 255) {
+			len = 0;
+			goto exit;
+		}
+
+		if (!lable_remain_len) {
+			/* compression label */
+			if ((buf[cur_offset] & 0xc0) == 0xc0) {
+				if (cur_offset + 1 >= buf_len) {
+					len = 0;
+					goto exit;
+				}
+
+				name_ptr = ((buf[cur_offset] & 0x3f) << 8) +
+					   buf[cur_offset + 1];
+				if (name_ptr >= cur_offset) {
+					len = 0;
+					goto exit;
+				}
+				cur_offset = name_ptr;
+			}
+
+			/* label length */
+			if (buf[cur_offset] > 63) {
+				len = 0;
+				goto exit;
+			}
+
+			if (buf[cur_offset] == 0) {
+				name[len] = '\0';
+				len += 1;
+				goto exit;
+			} else {
+				name[len] = '.';
+				len += 1;
+				lable_remain_len = buf[cur_offset];
+				cur_offset++;
+			}
+		} else {
+			name[len] = buf[cur_offset];
+			len += 1;
+			lable_remain_len = lable_remain_len - 1;
+			cur_offset++;
+		}
+	}
+
+exit:
+	if (name_len)
+		*name_len = (u8)len;
+
+	if (len)
+		RTW_PRINT_SEL(m, "domain name=%s\n", name + 1);
+	else
+		RTW_PRINT_SEL(m, "domain name parsing failed\n");
+}
+
+ssize_t proc_set_wow_mdns_resp(struct file *file, const char __user *buffer,
+			       size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	char *tmp = NULL;
+	u8 resp_idx = 0;
+	u8 *mdns_resp = NULL;
+	int err = 0;
+	int num, i;
+	size_t resp_str_len = 0;
+	u16 resp_hex_len = 0;
+
+	if (!padapter) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	tmp = rtw_zvmalloc(MDNS_RESP_PROC_BUF_LEN);
+	mdns_resp = rtw_zvmalloc(MDNS_RESP_STR_BUF_LEN);
+	if (!tmp || !mdns_resp) {
+		RTW_INFO("alloc buffer failed\n");
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (count < 1 || count > MDNS_RESP_PROC_BUF_LEN) {
+		RTW_INFO("argument size not available\n");
+		err = -EINVAL;
+		goto exit;
+	}
+
+	if (!buffer || copy_from_user(tmp, buffer, count)) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (strncmp(tmp, "clear", 5) == 0) {
+		RTW_INFO("clear all mdns resp\n");
+		for (i = 0; i < MAX_MDNS_RESP_NUM; i++)
+			rtw_wow_del_mdns_resp(padapter, i);
+		goto exit;
+	}
+
+	num = sscanf(tmp, "%hhu %s", &resp_idx, mdns_resp);
+	if ((num < 1) || (resp_idx > (MAX_MDNS_RESP_NUM - 1))) {
+		RTW_INFO("argument unavailable\n");
+		err = -EINVAL;
+		goto exit;
+	} else if (num == 1) {
+		RTW_INFO("remove mdns resp(%d)\n", resp_idx);
+		rtw_wow_del_mdns_resp(padapter, resp_idx);
+	} else {
+		resp_str_len = strlen(mdns_resp);
+		if (resp_str_len % 2 != 0) {
+			err = -EINVAL;
+			RTW_INFO("mdns_resp content format is incorrect\n");
+			goto exit;
+		}
+
+		for (i = 0; i < resp_str_len; i += 2) {
+			mdns_resp[resp_hex_len] = key_2char2num(mdns_resp[i], mdns_resp[i + 1]);
+			resp_hex_len++;
+		}
+
+		rtw_wow_add_mdns_resp(padapter, resp_idx, mdns_resp, resp_hex_len);
+	}
+
+exit:
+	if (tmp)
+		rtw_vmfree(tmp, MDNS_RESP_PROC_BUF_LEN);
+	if (mdns_resp)
+		rtw_vmfree(mdns_resp, MDNS_RESP_STR_BUF_LEN);
+
+	return err ? err : count;
+}
+
+int proc_get_wow_mdns_resp(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+	u8 resp_idx = 0;
+	u16 i = 0;
+
+	if (!padapter)
+		goto exit;
+
+	for (resp_idx = 0; resp_idx < MAX_MDNS_RESP_NUM; resp_idx++) {
+		rtw_wow_get_mdns_resp_ent(padapter, resp_idx, &resp_entry);
+
+		RTW_PRINT_SEL(m, "mdns resp(%d):", resp_idx);
+
+		if (resp_entry->content_len == 0) {
+			RTW_PRINT_SEL(m, "\n");
+			continue;
+		}
+
+		for (i = 0; i < resp_entry->content_len; i++) {
+			if (i % 32 == 0)
+				RTW_PRINT_SEL(m, "\n");
+			RTW_PRINT_SEL(m, "%02x", resp_entry->content[i]);
+		}
+		RTW_PRINT_SEL(m, "\n");
+	}
+
+exit:
+	return 0;
+}
+
+ssize_t proc_set_wow_mdns_match_criteria(struct file *file,
+					 const char __user *buffer,
+					 size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+	char tmp[13] = {0};
+	u8 resp_idx = 0;
+	u16 match_type = 0;
+	u16 name_offset = 0;
+	u8 name_len = 0;
+	int err = 0;
+	int num = 0;
+
+	if (!padapter) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (count < 1 || count > sizeof(tmp)) {
+		RTW_INFO("argument size not available\n");
+		err = -EINVAL;
+		goto exit;
+	}
+
+	if (!buffer || copy_from_user(tmp, buffer, count)) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	num = sscanf(tmp, "%hhu %hu %hu", &resp_idx, &match_type, &name_offset);
+	if ((num < 1) || num == 2 || (resp_idx > (MAX_MDNS_RESP_NUM - 1))) {
+		RTW_INFO("argument unavailable\n");
+		err = -EINVAL;
+	} else if (num == 1) {
+		RTW_INFO("remove mdns resp(%d) match criteria\n", resp_idx);
+		rtw_wow_del_mdns_match_crit(padapter, resp_idx);
+	} else {
+		rtw_wow_get_mdns_resp_ent(padapter, resp_idx, &resp_entry);
+		if (resp_entry->content_len == 0) {
+			RTW_INFO("mdns resp(%d) is empty\n", resp_idx);
+			err = -EFAULT;
+			goto exit;
+		}
+
+		_parse_mdns_domain_name(NULL, resp_entry->content,
+				       resp_entry->content_len,
+				       name_offset, &name_len);
+		if (name_len == 0) {
+			err = -EINVAL;
+			goto exit;
+		}
+
+		RTW_INFO("name_len=%3d\n", name_len);
+
+		rtw_wow_add_mdns_match_crit(padapter, resp_idx, match_type, name_offset, name_len);
+	}
+
+exit:
+	return err ? err : count;
+}
+
+int proc_get_wow_mdns_match_criteria(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct rtw_mdns_resp_entry *resp_entry = NULL;
+	u8 resp_idx = 0;
+	u8 i = 0;
+
+	if (!padapter)
+		goto exit;
+
+	for (resp_idx = 0; resp_idx < MAX_MDNS_RESP_NUM; resp_idx++) {
+		rtw_wow_get_mdns_resp_ent(padapter, resp_idx, &resp_entry);
+
+		RTW_PRINT_SEL(m, "mdns resp(%d) match criteria:\n", resp_idx);
+
+		for (i = 0; i < resp_entry->match_ct_num; i++) {
+			RTW_PRINT_SEL(m, "type=%5d, name_offset=%3d, name_len=%3d\n",
+				      resp_entry->match_ct[i].type,
+				      resp_entry->match_ct[i].name_offset,
+				      resp_entry->match_ct[i].name_len);
+			_parse_mdns_domain_name(m, resp_entry->content,
+						resp_entry->content_len,
+						resp_entry->match_ct[i].name_offset,
+						NULL);
+		}
+	}
+
+exit:
+	return 0;
+}
+
+ssize_t proc_set_wow_mdns_passthru_list(struct file *file,
+					const char __user *buffer,
+					size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	char tmp[MDNS_PASSTHRU_PROC_BUF_LEN] = {0};
+	u16 name_buf_len = 0;
+	u8 name_len = 0;
+	int err = 0;
+	u16 i = 0;
+
+	if (!padapter) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (count < 1 || count > sizeof(tmp)) {
+		RTW_INFO("argument size not available\n");
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (!buffer || copy_from_user(tmp, buffer, count)) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (strncmp(tmp, "clear", 5) == 0) {
+		RTW_INFO("clear passthru list\n");
+		rtw_wow_clr_mdns_passthru_name(padapter);
+	} else {
+		if ((count - 1) % 2 != 0) {
+			err = -EFAULT;
+			RTW_INFO("passthru name format is incorrect\n");
+			goto exit;
+		}
+
+		for (i = 0; i < count - 1 ; i += 2) {
+			tmp[name_buf_len] = key_2char2num(tmp[i], tmp[i+1]);
+			name_buf_len++;
+		}
+		_parse_mdns_domain_name(NULL, tmp, name_buf_len, 0, &name_len);
+
+		if (name_len == 0) {
+			err = -EFAULT;
+			goto exit;
+		}
+
+		if (_FAIL == rtw_wow_add_mdns_passthru_name(padapter, tmp, name_len)) {
+			err = -EFAULT;
+			goto exit;
+		}
+	}
+exit:
+	return err ? err : count;
+}
+
+int proc_get_wow_mdns_passthru_list(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct rtw_mdns_passthru_list *passthru_list = NULL;
+	u8 i = 0;
+
+	if (!padapter)
+		goto exit;
+
+	rtw_wow_get_mdns_passthru_list(padapter, &passthru_list);
+
+	RTW_PRINT_SEL(m, "mdns passthru list:\n");
+
+	for (i = 0; i < passthru_list->passthru_name_num; i++) {
+		RTW_PRINT_SEL(m, "name_len=%3d, ", passthru_list->passthru_name[i].name_len);
+		_parse_mdns_domain_name(m, passthru_list->passthru_name[i].name,
+					passthru_list->passthru_name[i].name_len,
+					0, NULL);
+	}
+
+exit:
+	return 0;
+}
+
+ssize_t proc_set_wow_mdns_offload_state(struct file *file,
+					    const char __user *buffer,
+					    size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct pwrctrl_priv *pwrpriv;
+	char tmp;
+	int err = 0;
+
+	if (!padapter) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	pwrpriv = adapter_to_pwrctl(padapter);
+
+	if (count != 2) {
+		RTW_INFO("argument size not available\n");
+		err = -EINVAL;
+		goto exit;
+	}
+
+	if (!buffer || copy_from_user(&tmp, buffer, 1)) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	tmp = key_char2num(tmp);
+	if (tmp < 0 || tmp > 1)
+		RTW_INFO("Invalid mdns offload state!\n");
+	else
+		pwrpriv->mdns_ofld_info.offload_state = tmp;
+
+exit:
+	return err ? err : count;
+}
+
+int proc_get_wow_mdns_offload_state(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct pwrctrl_priv *pwrpriv;
+
+	if (!padapter)
+		goto exit;
+
+	pwrpriv = adapter_to_pwrctl(padapter);
+
+	RTW_PRINT_SEL(m, "%d\n", pwrpriv->mdns_ofld_info.offload_state);
+
+exit:
+	return 0;
+}
+
+ssize_t proc_set_wow_mdns_passthru_behavior(struct file *file,
+					    const char __user *buffer,
+					    size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
+	struct rtw_mdns_passthru_list *passthru_list = NULL;
+	char tmp;
+	int err = 0;
+
+	if (!padapter) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	if (count != 2) {
+		RTW_INFO("argument size not available\n");
+		err = -EINVAL;
+		goto exit;
+	}
+
+	if (!buffer || copy_from_user(&tmp, buffer, 1)) {
+		err = -EFAULT;
+		goto exit;
+	}
+
+	tmp = key_char2num(tmp);
+	if (tmp < 0 || tmp > 2) {
+		RTW_INFO("Invalid passthrough behavior!\n");
+	} else {
+		rtw_wow_get_mdns_passthru_list(padapter, &passthru_list);
+		passthru_list->passthru_behavior = tmp;
+	}
+
+exit:
+	return err ? err : count;
+}
+
+int proc_get_wow_mdns_passthru_behavior(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct rtw_mdns_passthru_list *passthru_list;
+
+	if (!padapter)
+		goto exit;
+
+	rtw_wow_get_mdns_passthru_list(padapter, &passthru_list);
+
+	RTW_PRINT_SEL(m, "%d\n", passthru_list->passthru_behavior);
+
+exit:
+	return 0;
+}
+#endif /* CONFIG_MDNS_OFFLOAD */
 #endif /*CONFIG_WOWLAN*/
 
 #ifdef CONFIG_GPIO_WAKEUP

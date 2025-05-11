@@ -75,6 +75,7 @@ int recvbuf2recvframe(PADAPTER padapter, void *ptr)
 	u8 pkt_cnt = 0;
 	u32 pkt_offset;
 	s32 transfer_len;
+	s32 buffer_len;
 	u8 *pphy_status = NULL;
 	union recv_frame *precvframe = NULL;
 	struct rx_pkt_attrib *pattrib = NULL;
@@ -82,6 +83,7 @@ int recvbuf2recvframe(PADAPTER padapter, void *ptr)
 	struct recv_priv *precvpriv = &padapter->recvpriv;
 	_queue *pfree_recv_queue = &precvpriv->free_recv_queue;
 	_pkt *pskb;
+	static u8 buffer_full = 0;
 
 #ifdef CONFIG_USE_USB_BUFFER_ALLOC_RX
 	pskb = NULL;
@@ -92,13 +94,19 @@ int recvbuf2recvframe(PADAPTER padapter, void *ptr)
 	transfer_len = (s32)pskb->len;
 	pbuf = pskb->data;
 #endif /* CONFIG_USE_USB_BUFFER_ALLOC_RX */
-
+        buffer_len = transfer_len;
 
 #ifdef CONFIG_USB_RX_AGGREGATION
 	pkt_cnt = GET_RX_DESC_DMA_AGG_NUM_8822E(pbuf);
 #endif
 
 	do {
+		if (buffer_full) {
+			buffer_full = 0;
+			RTW_INFO("%s()-%d: previous RX data buffer is full, drop it!\n", __func__, __LINE__);
+			goto _exit_recvbuf2recvframe;
+		}
+
 		precvframe = rtw_alloc_recvframe(pfree_recv_queue);
 		if (precvframe == NULL) {
 			RTW_INFO("%s()-%d: rtw_alloc_recvframe() failed! RX Drop!\n", __func__, __LINE__);
@@ -125,9 +133,14 @@ int recvbuf2recvframe(PADAPTER padapter, void *ptr)
 		if ((pattrib->pkt_len <= 0) || (pkt_offset > transfer_len)) {
 			RTW_INFO("%s()-%d: RX Warning!,pkt_len<=0(%d) or pkt_offset(%d)> transfer_len(%d)\n"
 				, __func__, __LINE__, pattrib->pkt_len, pkt_offset, transfer_len);
-			if (pkt_offset > transfer_len)
+			if (pkt_offset > transfer_len) {
 				RTW_INFO("%s()-%d: RX Warning!,RXDESC_SIZE(%d), drvinfo_sz(%d), shift_sz(%d),pkt_len(%d)\n"
 					, __func__, __LINE__, RXDESC_SIZE, pattrib->drvinfo_sz, pattrib->shift_sz, pattrib->pkt_len);
+				if (buffer_len == MAX_RECVBUF_SZ) {
+					RTW_INFO("%s()-%d: Buffer is full, discard the following URB data!\n", __func__, __LINE__);
+					buffer_full = 1;
+				}
+			}
 
 			rtw_free_recvframe(precvframe, pfree_recv_queue);
 			goto _exit_recvbuf2recvframe;

@@ -942,8 +942,11 @@ void phydm_la_access_tx_pkt_buf(void *dm_void, u32 addr, u32 buff_idx)
 
 		if (page != smp->txff_page) {
 			smp->txff_page = page;
-			odm_set_mac_reg(dm, R_0x0140, MASKLWORD, 0x780 + page);
-		}
+			if (dm->support_ic_type & ODM_RTL8723F)
+				odm_set_mac_reg(dm, R_0x0140, MASKLWORD, 0x784 + page);
+			else
+				odm_set_mac_reg(dm, R_0x0140, MASKLWORD, 0x780 + page);
+		} //0x8000+0 ==> 0x8000+8 ==> 0x8000+16 ==> 0x8000+24
 		data_l = odm_read_4byte(dm, R_0x8000 + (addr & 0xfff));
 		data_h = odm_read_4byte(dm, R_0x8000 + (addr & 0xfff) + 4);
 	}
@@ -953,7 +956,7 @@ void phydm_la_access_tx_pkt_buf(void *dm_void, u32 addr, u32 buff_idx)
 
 	/*@==== [Print LA Patterns] ==========================================*/
 	if (smp->is_la_print)
-		pr_debug("%08x%08x\n", data_h, data_l);
+		pr_debug("[LA mode]%08x%08x\n", data_h, data_l);
 }
 
 void phydm_la_get_tx_pkt_buf(void *dm_void)
@@ -1027,16 +1030,16 @@ void phydm_la_get_tx_pkt_buf(void *dm_void)
 	pr_debug("Dump_Start\n");
 #if(RTL8723F_SUPPORT)
 	imem_base = 0x14040000;
-	txbuf_base = 0x18780000;
-	dma_len = 0x8000;
+	txbuf_base = 0x18784000;
+	dma_len = 0x4000;
 	txbuff_start_addr = txbuf_base;
 	imem_start_addr_offset = addr;
 	if (is_round_up) {
-		for(index = 0;index < 4;index++) {
-			dma_len = 0x8000;
+		for(index = 0;index < 8;index++) {
+			dma_len = 0x4000;
 			imem_start_addr= imem_base + (imem_start_addr_offset&0x1FFFF);
 
-			if((imem_start_addr_offset + 0x8000) >= buf->end_pos) {
+			if((imem_start_addr_offset + 0x4000) >= buf->end_pos) {
 				dma_len = buf->end_pos-imem_start_addr_offset;
 
 				phydm_la_mv_data_2_tx_buffer_rtl8723f(dm, imem_start_addr, txbuff_start_addr, dma_len);
@@ -1047,7 +1050,7 @@ void phydm_la_get_tx_pkt_buf(void *dm_void)
 					tx_buff_addr += 8;
 				}
 				imem_start_addr = imem_base;
-				dma_len = 0x8000-dma_len;
+				dma_len = 0x4000-dma_len;
 				phydm_la_mv_data_2_tx_buffer_rtl8723f(dm, imem_start_addr, txbuff_start_addr, dma_len);
 
 				tx_buff_addr = 0;
@@ -1058,21 +1061,21 @@ void phydm_la_get_tx_pkt_buf(void *dm_void)
 				imem_start_addr_offset = dma_len;
 			}
 			else {
-				dma_len = 0x8000;
+				dma_len = 0x4000;
 				phydm_la_mv_data_2_tx_buffer_rtl8723f(dm, imem_start_addr, txbuff_start_addr, dma_len);
 
 				tx_buff_addr = 0;
-				for (i = 0; i <4096; i++) {
+				for (i = 0; i < (dma_len >> 3); i++) {
 					phydm_la_access_tx_pkt_buf(dm, tx_buff_addr, i << 1);
 					tx_buff_addr += 8;
 				}
-				imem_start_addr_offset += 0x8000;
+				imem_start_addr_offset += 0x4000;
 			}
 		}
 	} else {
-		for(index = 0; index < 4;index++) {
+		for(index = 0; index < 8;index++) {
 			imem_start_addr = imem_base + (imem_start_addr_offset & 0x1FFFF);
-			if ((imem_start_addr_offset + 0x8000) > (finish_addr << 3))
+			if ((imem_start_addr_offset + 0x4000) > (finish_addr << 3))
 				dma_len = (finish_addr << 3) - imem_start_addr_offset; /*0x1208[17:0]:DMA Length*/
 			phydm_la_mv_data_2_tx_buffer_rtl8723f(dm,imem_start_addr, txbuff_start_addr, dma_len);
 			tx_buff_addr = 0;
@@ -1080,8 +1083,8 @@ void phydm_la_get_tx_pkt_buf(void *dm_void)
 				phydm_la_access_tx_pkt_buf(dm, tx_buff_addr, i << 1);
 				tx_buff_addr += 8;
 			}
-			dma_len = 0x8000;
-			imem_start_addr_offset += 0x8000;
+			dma_len = 0x4000;
+			imem_start_addr_offset += 0x4000;
 			if (imem_start_addr_offset > (finish_addr << 3))
 				break;
 		}
@@ -1558,7 +1561,18 @@ void phydm_la_adc_smp_start(void *dm_void)
 	pr_debug("1. [BB Setting] trig_mode = ((%d)), dbg_port = ((0x%x)), Trig_Edge = ((%d)), smp_rate = ((%d)), Trig_Sel = ((0x%x)), Dma_type = ((%d))\n",
 		 smp->la_trig_mode, smp->la_dbg_port, smp->la_trigger_edge,
 		 smp->la_smp_rate, smp->la_trig_sig_sel, smp->la_dma_type);
-
+#if (RTL8723F_SUPPORT)
+	if (dm->support_ic_type & ODM_RTL8723F) {
+		if (!*dm->mp_mode) {
+			odm_set_mac_reg(dm, R_0x0424, 0xff00, 0x70);
+			odm_set_mac_reg(dm, R_0x0454, 0xff00, 0x70);
+			odm_set_mac_reg(dm, R_0x0454, 0xff000000, 0x70);
+			odm_set_mac_reg(dm, R_0x0228, 0xff00, 0x70);
+			odm_set_mac_reg(dm, R_0x0228, 0xff000000, 0x70);
+		}
+		
+	}
+#endif
 #if (RTL8723F_SUPPORT || RTL8730A_SUPPORT)
 	if(dm->support_ic_type & ODM_RTL8723F)
 		bkp_val = (u8)odm_get_mac_reg(dm, R_0x1008, BIT(1));

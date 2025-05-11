@@ -20,7 +20,7 @@ ex_hal8822e_wifi_only_hw_config(
 	IN struct wifi_only_cfg *pwifionlycfg
 	)
 {
-	halwifionly_phy_set_bb_reg(pwifionlycfg, 0x70, 0xff000000, 0x0e);
+	halwifionly_phy_set_bb_reg(pwifionlycfg, 0x70, 0xff000000, 0x06);
 	/*gnt_wl=1 , gnt_bt=0*/
 	halwifionly_phy_set_bb_reg(pwifionlycfg, 0x1704, 0xffffffff, 0x7700);
 	halwifionly_phy_set_bb_reg(pwifionlycfg, 0x1700, 0xffffffff, 0xc00f0038);
@@ -61,3 +61,4 @@ hal8822e_wifi_only_switch_antenna(
 	)
 {
 }
+

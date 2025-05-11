@@ -118,4 +118,10 @@ void halrf_kip_rsvd_page_8822e(void *dm_void, u8 *buf, u32 *buf_size);
 
 void halrf_dack_reset_8822e(struct dm_struct *dm);
 
+void halrf_ex_rx_dck_dbg_info_8822e(void *dm_void);
+
+void halrf_dack_dump_8822e(struct dm_struct *dm);
+
+void dack_info_by_8822e(void *dm_void, u32 *_used, char *output, u32 *_out_len);
+
 #endif /*__HALRF_8822E_H__*/

@@ -162,7 +162,7 @@ void get_delta_swing_table_8822e(void *dm_void,
 			*temperature_up_b = cali_info->delta_swing_table_idx_2gb_p;
 			*temperature_down_b = cali_info->delta_swing_table_idx_2gb_n;
 		}
-	} else if (channel >= 16 && channel <= 96) {
+	} else if (channel >= 36 && channel <= 64) {
 		*temperature_up_a = cali_info->delta_swing_table_idx_5ga_p[0];
 		*temperature_down_a = cali_info->delta_swing_table_idx_5ga_n[0];
 		*temperature_up_b = cali_info->delta_swing_table_idx_5gb_p[0];
@@ -398,6 +398,7 @@ void halrf_ex_dac_fifo_rst_8822e(struct dm_struct *dm)
 	}
 #endif
 	halrf_dack_soft_rst_8822e(dm);
+	
 }
 void halrf_dack_lps_bk_8822e(struct dm_struct *dm)
 {
@@ -760,7 +761,7 @@ void halrf_dack_s0_8822e(struct dm_struct *dm)
 			RF_DBG(dm, DBG_RF_DACK, "[DACK]S0 MSBK timeout! i_ready=%d, q_ready=%d\n",
 				odm_get_bb_reg(dm, 0x385c, BIT(1)),
 				odm_get_bb_reg(dm, 0x388c, BIT(1)));
-//			dack->msbk_timeout[0] = true;
+			dack->msbk_timeout[0] = true;
 			break;
 		}
 	}
@@ -779,7 +780,7 @@ void halrf_dack_s0_8822e(struct dm_struct *dm)
 			RF_DBG(dm, DBG_RF_DACK, "[DACK]S0 DCK timeout! i_ready=%d, q_ready=%d\n",
 				odm_get_bb_reg(dm, 0x3870, BIT(2)),
 				odm_get_bb_reg(dm, 0x38a0, BIT(2)));
-//			dack->msbk_timeout[0] = true;
+			dack->dadck_timeout[0] = true;
 			break;
 		}
 	}
@@ -842,7 +843,7 @@ void halrf_dack_s1_8822e(struct dm_struct *dm)
 			RF_DBG(dm, DBG_RF_DACK, "[DACK]S1 MSBK timeout! i_ready=%d, q_ready=%d\n",
 				odm_get_bb_reg(dm, 0x395c, BIT(1)),
 				odm_get_bb_reg(dm, 0x398c, BIT(1)));
-//			dack->msbk_timeout[0] = true;
+			dack->msbk_timeout[1] = true;
 			break;
 		}
 	}
@@ -861,7 +862,7 @@ void halrf_dack_s1_8822e(struct dm_struct *dm)
 			RF_DBG(dm, DBG_RF_DACK, "[DACK]S1 DCK timeout! i_ready=%d, q_ready=%d\n",
 				odm_get_bb_reg(dm, 0x3970, BIT(2)),
 				odm_get_bb_reg(dm, 0x39a0, BIT(2)));
-//			dack->msbk_timeout[0] = true;
+			dack->dadck_timeout[1] = true;
 			break;
 		}
 	}
@@ -897,6 +898,60 @@ void halrf_addck_8822e(struct dm_struct *dm)
 	halrf_addck_s0_8822e(dm);
 	halrf_addck_s1_8822e(dm);
 }
+
+void dack_info_by_8822e(
+	void *dm_void,
+	u32 *_used,
+	char *output,
+	u32 *_out_len)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct dm_dack_info *dack = &dm->dack_info;
+	u8 i;
+	u8 t;
+	u32 used = *_used;
+	u32 out_len = *_out_len;
+
+	PDM_SNPF(out_len, used, output + used, out_len - used, "[DACK]S0 ADC_DCK ic = 0x%x, qc = 0x%x\n",
+					dack->addck_d[0][0], dack->addck_d[0][1] );
+	PDM_SNPF(out_len, used, output + used, out_len - used,"[DACK]S1 ADC_DCK ic = 0x%x, qc = 0x%x\n",
+					dack->addck_d[1][0], dack->addck_d[1][1] );
+	PDM_SNPF(out_len, used, output + used, out_len - used,  "[DACK]S0 DAC_DCK ic = 0x%x, qc = 0x%x\n",
+		dack->dadck_d[0][0], dack->dadck_d[0][1] );
+	PDM_SNPF(out_len, used, output + used, out_len - used,"[DACK]S1 DAC_DCK ic = 0x%x, qc = 0x%x\n",
+		dack->dadck_d[1][0], dack->dadck_d[1][1] );
+
+	PDM_SNPF(out_len, used, output + used, out_len - used, "[DACK]S0 biask = 0x%x\n",
+	   dack->new_biask_d[0]);
+	PDM_SNPF(out_len, used, output + used, out_len - used,"[DACK]S1 biask = 0x%x\n",
+	   dack->new_biask_d[1]);
+
+	PDM_SNPF(out_len, used, output + used, out_len - used,"[DACK]S0 MSBK ic:\n");
+	for (i = 0; i < 0x10; i++) {
+		t = dack->new_msbk_d[0][0][i];
+		PDM_SNPF(out_len, used, output + used, out_len - used, "[DACK]0x%x\n", t);
+	}
+	PDM_SNPF(out_len, used, output + used, out_len - used,"[DACK]S0 MSBK qc:\n");
+	for (i = 0; i < 0x10; i++) {
+		t = dack->new_msbk_d[0][1][i];
+	PDM_SNPF(out_len, used, output + used, out_len - used,"[DACK]0x%x\n", t);
+	}
+	PDM_SNPF(out_len, used, output + used, out_len - used,"[DACK]S1 MSBK ic:\n");
+	for (i = 0; i < 0x10; i++) {
+		t = dack->new_msbk_d[1][0][i];
+	PDM_SNPF(out_len, used, output + used, out_len - used,  "[DACK]0x%x\n", t);
+	}
+	PDM_SNPF(out_len, used, output + used, out_len - used, "[DACK]S1 MSBK qc:\n");
+	for (i = 0; i < 0x10; i++) {
+		t = dack->new_msbk_d[1][1][i];
+	PDM_SNPF(out_len, used, output + used, out_len - used, "[DACK]0x%x\n", t);
+	}
+
+	*_used = used;
+	*_out_len = out_len;
+}
+
+
 void halrf_dack_dump_8822e(struct dm_struct *dm)
 {
 	struct dm_dack_info *dack = &dm->dack_info;
@@ -965,6 +1020,28 @@ boolean halrf_dack_checkfail_8822e(struct dm_struct *dm)
 	return fail;
 }
 
+#ifdef  HALRF_DZ_LOG
+void halrf_dack_dz_rpt_8822e(struct dm_struct *dm)
+{
+	struct dm_dack_info *dack = &dm->dack_info;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	struct halrf_rfk_dz_rpt *rfk_dz = &(rf->rfk_dz_rpt);
+
+	if (dack->addck_timeout[0])
+		rfk_dz->dack_dz_code |= DZ_ADDCK0_TIMEOUT;
+	if (dack->addck_timeout[1])
+		rfk_dz->dack_dz_code |= DZ_ADDCK1_TIMEOUT;	
+	if (dack->dadck_timeout[0])
+		rfk_dz->dack_dz_code |= DZ_DADCK0_TIMEOUT;
+	if (dack->dadck_timeout[1])
+		rfk_dz->dack_dz_code |= DZ_DADCK1_TIMEOUT;
+	if (dack->msbk_timeout[0])
+		rfk_dz->dack_dz_code |= DZ_MSBK0_TIMEOUT;
+	if (dack->msbk_timeout[1])
+		rfk_dz->dack_dz_code |= DZ_MSBK1_TIMEOUT;
+}
+#endif
+
 void halrf_dac_cal_8822e(void *dm_void, boolean force)
 {
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
@@ -997,7 +1074,7 @@ void halrf_dac_cal_8822e(void *dm_void, boolean force)
 	RF_DBG(dm, DBG_RF_DACK, "[DACK]i=%d\n", i);
 	halrf_dack_val_8822e(dm, true);
 	halrf_dack_dump_8822e(dm);
-	
+	halrf_dack_dz_rpt_8822e(dm);
 //	halrf_dack_lps_bk_8822e(dm);
 //	halrf_dack_reset_8822e(dm);
 //	halrf_dack_lps_reload_8822e(dm);
@@ -1164,10 +1241,10 @@ void halrf_rx_dck_8822e(void *dm_void)
 	reg_180c = odm_get_bb_reg(dm, R_0x180c, MASKDWORD);
 	reg_410c = odm_get_bb_reg(dm, R_0x410c, MASKDWORD);
 
-	odm_set_bb_reg(dm, R_0x180c, 0x3, 0x0);
-	odm_set_bb_reg(dm, R_0x410c, 0x3, 0x0);
-
 	halrf_tx_pause_8822e(dm);
+
+	odm_set_bb_reg(dm, R_0x180c, 0x3, 0x0);
+	odm_set_bb_reg(dm, R_0x410c, 0x3, 0x0);	
 
 	btc_set_gnt_wl_bt_8822e(dm, true);
 
@@ -1224,13 +1301,10 @@ void halrf_rx_dck_dbg_info_8822e(void *dm_void, u32 *_used, char *output, u32 *_
 
 	odm_set_bb_reg(dm, R_0x180c, 0x3, 0x0);
 	odm_set_bb_reg(dm, R_0x410c, 0x3, 0x0);
-#if 1
+		
 	for (path = 0; path < 2; path++) {
 
-		PDM_SNPF(out_len, used, output + used, out_len - used,
-			 "\n---------------[ S%d DCK Value ]---------------\n", path);
-		
-
+		PDM_SNPF(out_len, used, output + used, out_len - used,"\n---------------[ S%d DCK Value ]---------------\n", path);
 		PDM_SNPF(out_len, used, output + used, out_len - used,
 			 " RF0x00 | S1_I / S2_I / S3_I / S1_Q / S2_Q / S3_Q\n");
 
@@ -1250,9 +1324,8 @@ void halrf_rx_dck_dbg_info_8822e(void *dm_void, u32 *_used, char *output, u32 *_
 	}
 	odm_set_bb_reg(dm, R_0x180c, MASKDWORD, reg_180c );
 	odm_set_bb_reg(dm, R_0x410c, MASKDWORD, reg_410c);
-#endif
-
 }
+
 void _phy_x2_calibrate_8822e(struct dm_struct *dm)
 {
 	RF_DBG(dm, DBG_RF_IQK, "[X2K]X2K start!!!!!!!\n");
@@ -1268,6 +1341,48 @@ void _phy_x2_calibrate_8822e(struct dm_struct *dm)
 	// SYN is in the path A
 	RF_DBG(dm, DBG_RF_IQK, "[X2K]X2K end!!!!!!!\n");
 }
+
+#ifdef HALRF_DZ_LOG
+void halrf_ex_rx_dck_dbg_info_8822e(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	u32 reg_180c, reg_410c, rx_gain;
+	u8 path, rxbb;
+
+	reg_180c = odm_get_bb_reg(dm, R_0x180c, MASKDWORD);
+	reg_410c = odm_get_bb_reg(dm, R_0x410c, MASKDWORD);
+
+	odm_set_bb_reg(dm, R_0x180c, 0x3, 0x0);
+	odm_set_bb_reg(dm, R_0x410c, 0x3, 0x0);
+#if 1
+	for (path = 0; path < 2; path++) {
+
+	RF_DBG(dm, DBG_RF_DZ_LOG,
+			 "\n---------------[ S%d DCK Value ]---------------\n", path);
+		
+
+		RF_DBG(dm, DBG_RF_DZ_LOG,
+			 " RF0x00 | S1_I / S2_I / S3_I / S1_Q / S2_Q / S3_Q\n");
+
+			for (rxbb = 0; rxbb < 32; rxbb++) {
+				rx_gain = 0x30000 | (rxbb << 5);
+				odm_set_rf_reg(dm, (enum rf_path)path, 0x00, RFREG_MASK, rx_gain);
+
+				RF_DBG(dm, DBG_RF_DZ_LOG,
+				    "0x%05x | 0x%02x / 0x%02x / 0x%02x / 0x%02x / 0x%02x / 0x%02x\n", rx_gain,
+				    odm_get_rf_reg(dm, (enum rf_path)path, 0x92, 0xF8000),  /*[19:15]*/
+				    odm_get_rf_reg(dm, (enum rf_path)path, 0x92, 0x07000),  /*[14:12]*/
+				    odm_get_rf_reg(dm, (enum rf_path)path, 0x92, 0x00F80),  /*[11:7]*/
+				    odm_get_rf_reg(dm, (enum rf_path)path, 0x93, 0xF8000),  /*[19:15]*/
+				    odm_get_rf_reg(dm, (enum rf_path)path, 0x93, 0x07000),  /*[14:12]*/
+				    odm_get_rf_reg(dm, (enum rf_path)path, 0x93, 0x00F80));  /*[11:7]*/
+			}
+	}
+	odm_set_bb_reg(dm, R_0x180c, MASKDWORD, reg_180c );
+	odm_set_bb_reg(dm, R_0x410c, MASKDWORD, reg_410c);
+#endif
+}
+#endif
 
 void phy_x2_check_8822e(void *dm_void)
 {
@@ -1469,7 +1584,7 @@ void halrf_rfk_handshake_8822e(void *dm_void, boolean is_before_k)
 	#endif		
 		for (i = 0; i < 1000; i++)
 			ODM_delay_us(5);
-		//ODM_delay_us(20);		
+		//ODM_delay_us(20);	
 	} else {
 		/* Send RFK finish H2C cmd*/
 		h2c_parameter = 0;
@@ -1928,6 +2043,4 @@ void halrf_pwr_trk_info_8822e(void *dm_void, u32 *_used, char *output, u32 *_out
 		odm_get_bb_reg(dm, R_0x18a0, 0x000000ff),
 		odm_get_bb_reg(dm, R_0x41a0, 0x000000ff));
 }
-
-
 #endif /*(RTL8822E_SUPPORT == 0)*/

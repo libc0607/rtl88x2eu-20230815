@@ -53,13 +53,13 @@
 	#error "Enable CONCURRENT_MODE before enable MCC MODE\n"
 
 #endif
-
+#if 0
 #if defined(CONFIG_MCC_MODE) && defined(CONFIG_BT_COEXIST)
 
 	#error "Disable BT COEXIST before enable MCC MODE\n"
 
 #endif
-
+#endif
 #if defined(CONFIG_MCC_MODE) && defined(CONFIG_TDLS)
 
 	#error "Disable TDLS before enable MCC MODE\n"

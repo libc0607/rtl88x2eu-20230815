@@ -813,7 +813,7 @@ void phydm_bw_fixed_enable(void *dm_void, u8 enable)
 
 	if (dm->support_ic_type & (ODM_RTL8821C | ODM_RTL8822B | ODM_RTL8195B))
 		odm_set_bb_reg(dm, R_0x840, BIT(4), val);
-	else if (dm->support_ic_type & (ODM_RTL8822C | ODM_RTL8822E | ODM_RTL8197G))
+	else if (dm->support_ic_type & (ODM_RTL8822C | ODM_RTL8822E | ODM_RTL8197G | ODM_RTL8723F))
 		odm_set_bb_reg(dm, R_0x878, BIT(28), val);
 	else if (dm->support_ic_type & ODM_RTL8192F)
 		odm_set_bb_reg(dm, R_0xc00, 0xc, val);
@@ -836,7 +836,7 @@ void phydm_bw_fixed_setting(void *dm_void)
 		reg = R_0x840;
 		reg_mask = 0xf;
 		reg_value = api->pri_ch_idx;
-	} else if (dm->support_ic_type & (ODM_RTL8822C | ODM_RTL8822E | ODM_RTL8197G)) {
+	} else if (dm->support_ic_type & (ODM_RTL8822C | ODM_RTL8822E | ODM_RTL8197G | ODM_RTL8723F)) {
 		reg = R_0x878;
 		reg_mask = 0xc0000000;
 		reg_value = 0x0;

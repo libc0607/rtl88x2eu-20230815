@@ -1178,7 +1178,10 @@ phydm_rfe_8822e(struct dm_struct *dm, enum bb_path path)
 	u32 rf_reg18 = 0;
 	u8 central_ch = 0;
 	boolean is_2g_ch = false;
-
+	
+	if (!(rfe_type == 21 || rfe_type == 22 || rfe_type == 23 || rfe_type == 24))
+		return;
+		
 	rf_reg18 = config_phydm_read_rf_reg_8822e(dm, RF_PATH_A, RF_0x18,
 						  RFREG_MASK);
 	central_ch = (u8)(rf_reg18 & 0xff);
@@ -1189,43 +1192,46 @@ phydm_rfe_8822e(struct dm_struct *dm, enum bb_path path)
 		  dm->tx_ant_status, dm->rx_ant_status, rfe_type);
 
 	/*HW Setting for each RFE type */
-	if (rfe_type == 21 || rfe_type == 22) {
+
 		/*rfe sel*/
 		/*0 : PAPE_2G_rfm*/
 		/*2 : LNAON_2G*/
 		/*3 : rfm_lnaon*/
 		/*7 : 1'b0*/
-		if (is_2g_ch)
+	if (is_2g_ch) {
+		if (rfe_type == 21 || rfe_type == 22)
 			path = BB_PATH_NON;
-
-		switch (path) {
-		case BB_PATH_NON:
-			odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00007000);
-			odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00007007);
-			odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x70700000);
-			odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000070);
-			break;
-		case BB_PATH_A:
-			odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00002000);
-			odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00003000);
-			odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x70700000);
-			odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000070);
-			break;
-		case BB_PATH_B:
-			odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00007000);
-			odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00007007);
-			odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x00200000);
-			odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000030);
-			break;
-		case BB_PATH_AB:
-			odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00002000);
-			odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00003000);
-			odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x00200000);
-			odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000030);
-			break;
-		default:
-			break;
-		}
+	        } else {
+		        if (rfe_type == 23 || rfe_type == 24)
+			        path = BB_PATH_NON;
+	        }
+	        switch (path) {
+	case BB_PATH_NON:
+		odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00007000);
+		odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00007007);
+		odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x70700000);
+		odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000070);
+		break;
+	case BB_PATH_A:
+		odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00002000);
+		odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00003000);
+		odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x70700000);
+		odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000070);
+		break;
+	case BB_PATH_B:
+		odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00007000);
+		odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00007007);
+		odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x00200000);
+		odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000030);
+		break;
+	case BB_PATH_AB:
+		odm_set_bb_reg(dm, R_0x1840, MASKDWORD, 0x00002000);
+		odm_set_bb_reg(dm, R_0x1844, MASKDWORD, 0x00003000);
+		odm_set_bb_reg(dm, R_0x4140, MASKDWORD, 0x00200000);
+		odm_set_bb_reg(dm, R_0x4144, MASKDWORD, 0x00000030);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -1315,7 +1321,7 @@ config_phydm_trx_mode_8822e(struct dm_struct *dm, enum bb_path tx_path_en,
 				   tx_path_sel_1ss);
 
 	/*====== [RFE ctrl] =============================================*/
-	if (rfe_type == 21 || rfe_type == 22) {
+	if (rfe_type == 21 || rfe_type == 22 || rfe_type == 23 || rfe_type == 24) {
 		if (dm->tx_ant_status == BB_PATH_A && rx_path == BB_PATH_A)
 			phydm_rfe_8822e(dm, BB_PATH_A);
 		else if (dm->tx_ant_status == BB_PATH_B && rx_path == BB_PATH_B)
@@ -1380,7 +1386,11 @@ phydm_cck_tx_shaping_filter_8822e(struct dm_struct *dm, u8 central_ch)
 		/*TX Shaping Filter_MSB C8~15 */
 		odm_set_bb_reg(dm, R_0x1ab0, MASKDWORD, 0x0000ffff);
 		/*Tx backoff CCK*/
-		//odm_set_bb_reg(dm, R_0x818, 0xf8000000, 0x1f);
+		odm_set_bb_reg(dm, R_0x818, 0xf8000000, 0x1e);
+		/*Tx backoff OFDM*/
+		odm_set_bb_reg(dm, R_0x818, 0x7c00000, 0x7);
+		/*Tx scaling*/
+		odm_set_bb_reg(dm, R_0x81c, 0x1fc000, 0x8);
 	} else {
 		/*TX Shaping Filter C0~1 */
 		odm_set_bb_reg(dm, R_0x1a20, MASKHWORD, 0x5284);
@@ -1399,7 +1409,11 @@ phydm_cck_tx_shaping_filter_8822e(struct dm_struct *dm, u8 central_ch)
 		/*TX Shaping Filter_MSB C8~15 */
 		odm_set_bb_reg(dm, R_0x1ab0, MASKDWORD, 0x0fffffff);
 		/*Tx backoff CCK*/
-		//odm_set_bb_reg(dm, R_0x818, 0xf8000000, 0x18);
+		odm_set_bb_reg(dm, R_0x818, 0xf8000000, 0x1a);
+		/*Tx backoff OFDM*/
+		odm_set_bb_reg(dm, R_0x818, 0x7c00000, 0xc);
+		/*Tx scaling*/
+		odm_set_bb_reg(dm, R_0x81c, 0x1fc000, 0x4);
 	}
 }
 
@@ -1752,25 +1766,29 @@ void phydm_set_dis_dpd_by_rate_8822e(struct dm_struct *dm, u16 bitmask)
 }
 
 __odm_func__
-void phydm_set_agc_table_8822e(struct dm_struct *dm, boolean bt_is_linked)
+void phydm_set_agc_table_8822e(struct dm_struct *dm, boolean bt_is_linked, u8 iso_table_idx)
 {
 	u32 rf_reg18 = 0;
 	u8 central_ch = 0;
 	u8 rfe_type = dm->rfe_type;
 
+	if (iso_table_idx >= 16)
+		return;
+		
 	rf_reg18 = config_phydm_read_rf_reg_8822e(dm, RF_PATH_A, RF_0x18,
 						  RFREG_MASK);
 	central_ch = (u8)(rf_reg18 & 0xff);
 
 	dm->bt_is_linked = bt_is_linked;
-
+	dm->bt_iso_tbl_idx = iso_table_idx;
+	
 	if (central_ch <= 14) {
 		if (dm->bt_is_linked) {
 			phydm_cck_agc_tab_sel_8822e(dm, CCK_BTC_8822E);
 			if (rfe_type & 0x1)
 				phydm_ofdm_agc_tab_sel_8822e(dm, OFDM_2G_BTC_8822E);
 			else
-				phydm_ofdm_agc_tab_sel_8822e(dm, OFDM_2G_ISO_BTC_8822E);
+				phydm_ofdm_agc_tab_sel_8822e(dm, iso_table_idx);
 		} else {
 			phydm_cck_agc_tab_sel_8822e(dm, CCK_8822E);
 			phydm_ofdm_agc_tab_sel_8822e(dm, OFDM_2G_8822E);
@@ -1890,7 +1908,7 @@ config_phydm_switch_channel_8822e(struct dm_struct *dm, u8 central_ch)
 	/* ==== [Set BB Reg] =================================================*/
 	/* 1. AGC table selection */
 	if (central_ch <= 14) {
-		phydm_set_agc_table_8822e(dm, dm->bt_is_linked);
+		phydm_set_agc_table_8822e(dm, dm->bt_is_linked, dm->bt_iso_tbl_idx);
 	} else if (central_ch >= 16 && central_ch < 80) {
 		phydm_ofdm_agc_tab_sel_8822e(dm, OFDM_5G_LOW_BAND_8822E);
 	} else if ((central_ch >= 80) && (central_ch <= 144)) {
@@ -1914,8 +1932,16 @@ config_phydm_switch_channel_8822e(struct dm_struct *dm, u8 central_ch)
 		/* CCA Mask, default = 0xf */
 		odm_set_bb_reg(dm, R_0x1c80, 0x3F000000, 0xF);
 		/*RFE ctrl*/
-		if (rfe_type == 21 || rfe_type == 22)
+		if (rfe_type == 21 || rfe_type == 22) {
 			phydm_rfe_8822e(dm, BB_PATH_NON);
+		  } else if (rfe_type == 23 || rfe_type == 24) {
+			if (tx == BB_PATH_A && rx == BB_PATH_A)
+				phydm_rfe_8822e(dm, BB_PATH_A);
+			else if (tx == BB_PATH_B && rx == BB_PATH_B)
+				phydm_rfe_8822e(dm, BB_PATH_B);
+			else
+				phydm_rfe_8822e(dm, BB_PATH_AB);
+		}
 	} else { /* 5G*/
 		/* Enable BB CCK check */
 		odm_set_bb_reg(dm, R_0x1a80, BIT(18), 0x1);
@@ -1925,6 +1951,10 @@ config_phydm_switch_channel_8822e(struct dm_struct *dm, u8 central_ch)
 		phydm_cck_rxiq_8822e(dm, PHYDM_REVERT);
 		/* CCA Mask */
 		odm_set_bb_reg(dm, R_0x1c80, 0x3F000000, 0x22);
+		/*Tx backoff OFDM*/
+		odm_set_bb_reg(dm, R_0x818, 0x7c00000, 0xc);
+		/*Tx scaling*/
+		odm_set_bb_reg(dm, R_0x81c, 0x1fc000, 0x4);
 		/*RFE ctrl*/
 		if (rfe_type == 21 || rfe_type == 22) {
 			if (tx == BB_PATH_A && rx == BB_PATH_A)
@@ -1933,6 +1963,8 @@ config_phydm_switch_channel_8822e(struct dm_struct *dm, u8 central_ch)
 				phydm_rfe_8822e(dm, BB_PATH_B);
 			else
 				phydm_rfe_8822e(dm, BB_PATH_AB);
+		  } else if (rfe_type == 23 || rfe_type == 24) {
+			phydm_rfe_8822e(dm, BB_PATH_NON);
 		}
 	}
 

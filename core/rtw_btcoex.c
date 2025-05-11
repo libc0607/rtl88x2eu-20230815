@@ -382,6 +382,11 @@ void rtw_btcoex_do_reduce_wl_pwr_lvl(PADAPTER padapter)
 	hal_btcoex_do_reduce_wl_pwr_lvl(padapter);
 }
 
+void rtw_btcoex_set_agc_tbl(PADAPTER padapter, u32 bt_linked, u32 agc_tbl_idx)
+{
+	hal_btcoex_set_agc_tbl(padapter, bt_linked, agc_tbl_idx);
+}
+
 void rtw_btcoex_RecordPwrMode(PADAPTER padapter, u8 *pCmdBuf, u8 cmdLen)
 {
 	hal_btcoex_RecordPwrMode(padapter, pCmdBuf, cmdLen);

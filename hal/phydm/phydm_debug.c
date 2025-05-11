@@ -2023,7 +2023,6 @@ void phydm_show_cn_hitogram(void *dm_void)
 	char buf[PHYDM_SNPRINT_SIZE] = {0};
 	u8 i = 0;
 	u16 *cn_hist = NULL;
-	u32 cn_avg = 0;
 
 	if (!dm->pkt_proc_struct.physts_auto_swch_en)
 		return;
@@ -2046,7 +2045,7 @@ void phydm_show_cn_hitogram(void *dm_void)
 		if (dbg_s->p4_cnt[i] == 0)
 			continue;
 
-		cn_avg = PHYDM_DIV((dbg_s->cn_sum[i] +
+		dbg_i->cn_avg = PHYDM_DIV((dbg_s->cn_sum[i] +
 				   (dbg_s->p4_cnt[i] >> 1)) << 2,
 				   dbg_s->p4_cnt[i]); /*u(8,1)<<2 -> u(10,3)*/
 
@@ -2054,8 +2053,8 @@ void phydm_show_cn_hitogram(void *dm_void)
 		phydm_print_hist_2_buf(dm, cn_hist,
 				       PHY_HIST_SIZE, buf, PHYDM_SNPRINT_SIZE);
 		PHYDM_DBG(dm, DBG_CMN_OTHER, "[%d-SS]%s=(avg:%d.%4d)%s\n",
-			  i + 1, "[CN]", cn_avg >> 3,
-			  phydm_show_fraction_num(cn_avg & 0x7, 3), buf);
+			  i + 1, "[CN]", dbg_i->cn_avg >> 3,
+			  phydm_show_fraction_num(dbg_i->cn_avg & 0x7, 3), buf);
 	}
 }
 #endif
@@ -2197,13 +2196,16 @@ void phydm_avg_phy_val_nss(void *dm_void, u8 nss)
 		if (nss == 0 || nss == 1) {
 			*tmp_evm_avg = (u8)(*tmp_evm_sum / *tmp_cnt);
 			evm_rpt_show[0] = *tmp_evm_avg;
-		} else {
+		}
+#if (defined(PHYDM_COMPILE_ABOVE_2SS))
+		else {
 			for (i = 0; i < nss; i++) {
 				tmp_evm_avg[i] = (u8)(tmp_evm_sum[i] /
 						      *tmp_cnt);
 				evm_rpt_show[i] = tmp_evm_avg[i];
 			}
 		}
+#endif
 	}
 
 #if (defined(PHYDM_COMPILE_ABOVE_4SS))
@@ -2244,6 +2246,7 @@ void phydm_get_avg_phystatus_val(void *dm_void)
 	struct phydm_phystatus_avg *dbg_avg = &dbg_i->phystatus_statistic_avg;
 	u32 avg_tmp = 0;
 	u8 i = 0;
+	u32 pkt_cnt_temp = 0;
 
 	PHYDM_DBG(dm, DBG_CMN, "[PHY Avg] ==============>\n");
 	phydm_reset_phystatus_avg(dm);
@@ -2348,6 +2351,52 @@ void phydm_get_avg_phystatus_val(void *dm_void)
 
 	for (i = 0; i <= dm->num_rf_path; i++)
 		phydm_avg_phy_val_nss(dm, i);
+	
+	#ifdef PHYDM_AUTO_DEGBUG
+	if ((dbg_s->rssi_ofdm_cnt + dbg_s->rssi_1ss_cnt) != 0){
+		avg_tmp = PHYDM_DIV((dbg_s->evm_ofdm_sum + dbg_s->evm_1ss_sum), (dbg_s->rssi_ofdm_cnt + dbg_s->rssi_1ss_cnt));
+		dbg_avg->evm_1ss_avg_all = (u8)avg_tmp;
+	}
+	pkt_cnt_temp = dbg_s->pkt_cnt_t;
+	for (i = 0; i < dm->num_max_ss; i++){
+		if (pkt_cnt_temp <= 0)
+			break;
+		dbg_avg->evm_ss_avg[i] = (u8)PHYDM_DIV(dbg_s->evm_ss_sum[i], pkt_cnt_temp);
+		switch (i) {
+		case 0:
+			pkt_cnt_temp -= dbg_s->rssi_1ss_cnt;
+			break;
+		#if (defined(PHYDM_COMPILE_ABOVE_2SS))
+		case 1:
+			pkt_cnt_temp -= dbg_s->rssi_2ss_cnt;
+			break;
+		#endif
+		#if (defined(PHYDM_COMPILE_ABOVE_3SS))
+		case 2:
+			pkt_cnt_temp -= dbg_s->rssi_3ss_cnt;
+			break;
+		#endif
+		#if (defined(PHYDM_COMPILE_ABOVE_4SS))
+		case 3:
+			pkt_cnt_temp -= dbg_s->rssi_4ss_cnt;
+			break;
+		#endif
+		}
+	}
+	
+	dbg_avg->evm_min_avg = dbg_avg->evm_ss_avg[0];
+	dbg_avg->evm_max_avg = dbg_avg->evm_ss_avg[0];
+	for (i = 1; i < dm->num_max_ss; i++){
+		if (dbg_avg->evm_ss_avg[i] > dbg_avg->evm_max_avg)
+			dbg_avg->evm_max_avg = dbg_avg->evm_ss_avg[i];
+		if (dbg_avg->evm_ss_avg[i] < dbg_avg->evm_min_avg)
+			dbg_avg->evm_min_avg = dbg_avg->evm_ss_avg[i];
+	}
+	
+	for (i = 0; i < dm->num_rf_path; i++) {
+		dbg_avg->snr_per_path_avg[i] = (u8)PHYDM_DIV(dbg_s->snr_per_path_sum[i], dbg_s->snr_per_path_cnt[i]);
+	}
+	#endif
 }
 
 void phydm_get_phy_statistic(void *dm_void)
@@ -2355,19 +2404,18 @@ void phydm_get_phy_statistic(void *dm_void)
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
 	struct cmn_sta_info *sta = dm->phydm_sta_info[dm->one_entry_macid];
 	enum channel_width bw;
-	u16 avg_phy_rate = 0;
-	u16 utility = 0;
 	u8 rx_ss = 1;
 
-	avg_phy_rate = phydm_rx_avg_phy_rate(dm);
+	dm->avg_phy_rate = phydm_rx_avg_phy_rate(dm);
 
 	if (dm->is_one_entry_only && is_sta_active(sta)) {
 		rx_ss = phydm_get_rx_stream_num(dm, sta->mimo_type);
 		bw = sta->bw_mode;
-		utility = phydm_rx_utility(dm, avg_phy_rate, rx_ss, bw);
+		dm->rx_utility = phydm_rx_utility(dm, dm->avg_phy_rate, rx_ss, bw);
+		dm->curr_tx_rate = sta->ra_info.curr_tx_rate;
 	}
 	PHYDM_DBG(dm, DBG_CMN, "Avg_rx_rate = %d, rx_utility=( %d / 1000 )\n",
-		  avg_phy_rate, utility);
+		  dm->avg_phy_rate, dm->rx_utility);
 
 	phydm_rx_rate_distribution(dm);
 	phydm_reset_rx_rate_distribution(dm);
@@ -2750,7 +2798,17 @@ void phydm_basic_dbg_message(void *dm_void)
 			  "is_linked = %d, Num_client = %d, rssi_min = %d, IGI = 0x%x\n",
 			  dm->is_linked, dm->number_linked_client, dm->rssi_min,
 			  dm->dm_dig_table.cur_ig_value);
+	#if (RTL8822E_SUPPORT)
+	if (dm->support_ic_type & (ODM_RTL8822E)) {
+		PHYDM_DBG(dm, DBG_CMN, "bt_is_linked = %d, btc_rssi_en = %d, cck_rssi_th = %d, btc_mcs_rssi_en = %d\n", dm->bt_is_linked, dm->btc_rssi_processing, dm->bt_cck_rssi_th, dm->btc_mcs_rssi_en);
+	}
+	#endif
 
+	#if (RTL8822C_SUPPORT)
+	if (dm->support_ic_type & (ODM_RTL8822C)) {
+		PHYDM_DBG(dm, DBG_CMN, "bt_is_linked = %d\n", dm->bt_is_linked);
+	}
+	#endif
 	PHYDM_DBG(dm, DBG_CMN,
 		  "ratio{nhm, nhm_env, clm, idle, tx}={%d, %d, %d, %d, %d}, nhm_pwr=%d\n",
 		  ccx->nhm_ratio, ccx->nhm_env_ratio, ccx->clm_ratio,
@@ -2768,7 +2826,7 @@ void phydm_basic_dbg_message(void *dm_void)
 
 #ifdef EDCCA_CLM_SUPPORT
 	if (dm->support_ic_type & PHYDM_IC_SUPPORT_EDCCA_CLM) {
-		PHYDM_DBG(dm, DBG_CMN_OTHER, "edcca_clm_ratio=%d\n",
+		PHYDM_DBG(dm, DBG_CMN, "edcca_clm_ratio=%d\n",
 			  ccx->edcca_clm_ratio);
 	}
 #endif
@@ -3604,6 +3662,7 @@ void phydm_cmn_msg_setting(void *dm_void, u32 *val, u32 *_used,
 			   char *output, u32 *_out_len)
 {
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct phydm_auto_dbg_info *a_dbg = &dm->auto_dbg_i;
 	u32 used = *_used;
 	u32 out_len = *_out_len;
 
@@ -3620,8 +3679,10 @@ void phydm_cmn_msg_setting(void *dm_void, u32 *val, u32 *_used,
 #ifdef PHYDM_PHYSTAUS_AUTO_SWITCH
 	if (val[1] == 1)
 		phydm_physts_auto_switch_jgr3_set(dm, true, BIT(4) | BIT(1));
-	else
-		phydm_physts_auto_switch_jgr3_set(dm, false, BIT(1));
+	else {
+		if(!(a_dbg->auto_dbg_type_i & BIT(AUTO_DBG_PHY_UTILITY)))
+			phydm_physts_auto_switch_jgr3_set(dm, false, BIT(1));
+	}
 #endif
 	*_used = used;
 	*_out_len = out_len;
@@ -5727,7 +5788,7 @@ void phydm_cmd_parser(struct dm_struct *dm, char input[][MAX_ARGV],
 
 	case PHYDM_AUTO_DBG:
 		#ifdef PHYDM_AUTO_DEGBUG
-		phydm_auto_dbg_console(dm, input, &used, output, &out_len);
+		phydm_auto_debug_dbg(dm, input, &used, output, &out_len);
 		#endif
 		break;
 

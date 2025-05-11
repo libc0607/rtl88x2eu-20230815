@@ -4315,6 +4315,74 @@ void phydm_get_set_pa_bias_offset_8822e(void *dm_void)
 }
 
 
+void phydm_get_power_trim_offset_8703b(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct odm_power_trim_data *power_trim_info = &dm->power_trim_data;
+
+	u8 pg_power = 0xff;
+
+	odm_efuse_one_byte_read(dm, 0xEE, &pg_power, false);
+
+	if (pg_power != 0xff) {
+		/*Path A*/
+		odm_efuse_one_byte_read(dm, 0xEE, &pg_power, false);
+		power_trim_info->bb_gain[0][0] = (pg_power & 0xf);
+
+		power_trim_info->flag |= KFREE_FLAG_ON_2G;
+		power_trim_info->flag |= KFREE_FLAG_ON;
+	}
+
+	RF_DBG(dm, DBG_RF_MP, "[kfree] 8703b power trim flag:0x%02x\n",
+	       power_trim_info->flag);
+
+	if (power_trim_info->flag & KFREE_FLAG_ON)
+		RF_DBG(dm, DBG_RF_MP,
+		       "[kfree] 8703b power_trim_data->bb_gain[0][0]=0x%X\n",
+		       power_trim_info->bb_gain[0][0]);
+}
+
+void phydm_set_kfree_to_rf_8703b(void *dm_void, u8 e_rf_path, u8 data)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	u32 gain_bmask = (BIT(18) | BIT(17) | BIT(16) | BIT(15));
+
+	odm_set_rf_reg(dm, e_rf_path, RF_0x55, BIT(19), (data & BIT(0)));
+	odm_set_rf_reg(dm, e_rf_path, RF_0x55, gain_bmask, ((data & 0xf) >> 1));
+
+	RF_DBG(dm, DBG_RF_MP, "[kfree] 8703b 0x55[19:15]=0x%X path=%d\n",
+	       odm_get_rf_reg(dm, e_rf_path, RF_0x55,
+			      (BIT(19) | BIT(18) | BIT(17) | BIT(16) |
+			      BIT(15))), e_rf_path);
+}
+
+void phydm_get_thermal_trim_offset_8703b(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct odm_power_trim_data *power_trim_info = &dm->power_trim_data;
+
+	u8 pg_therm = 0xff;
+
+	odm_efuse_one_byte_read(dm, 0x0EF, &pg_therm, false);
+
+	if (pg_therm != 0xff) {
+		pg_therm = pg_therm & 0x1f;
+		if ((pg_therm & BIT(0)) == 0)
+			power_trim_info->thermal = (-1 * (pg_therm >> 1));
+		else
+			power_trim_info->thermal = (pg_therm >> 1);
+
+		power_trim_info->flag |= KFREE_FLAG_THERMAL_K_ON;
+	}
+
+	RF_DBG(dm, DBG_RF_MP, "[kfree] 8703b thermal trim flag:0x%02x\n",
+	       power_trim_info->flag);
+
+	if (power_trim_info->flag & KFREE_FLAG_THERMAL_K_ON)
+		RF_DBG(dm, DBG_RF_MP, "[kfree] 8703b thermal:%d\n",
+		       power_trim_info->thermal);
+}
+
 s8 phydm_get_tssi_trim_de(void *dm_void, u8 path)
 {
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
@@ -4469,6 +4537,9 @@ void phydm_set_kfree_to_rf(void *dm_void, u8 e_rf_path, u8 data)
 
 	if (dm->support_ic_type & ODM_RTL8198F)
 		phydm_set_kfree_to_rf_8198f(dm, e_rf_path, data);
+		
+	if (dm->support_ic_type & ODM_RTL8703B)
+		phydm_set_kfree_to_rf_8703b(dm, e_rf_path, data);
 }
 
 void phydm_clear_kfree_to_rf(void *dm_void, u8 e_rf_path, u8 data)
@@ -4509,6 +4580,8 @@ void phydm_get_thermal_trim_offset(void *dm_void)
 		phydm_get_thermal_trim_offset_8192f(dm_void);
 	else if (dm->support_ic_type & ODM_RTL8198F)
 		phydm_get_thermal_trim_offset_8198f(dm_void);
+	else if (dm->support_ic_type & ODM_RTL8703B)
+		phydm_get_thermal_trim_offset_8703b(dm_void);
 }
 
 void phydm_get_power_trim_offset(void *dm_void)
@@ -4535,6 +4608,8 @@ void phydm_get_power_trim_offset(void *dm_void)
 		phydm_get_power_trim_offset_8192f(dm_void);
 	else if (dm->support_ic_type & ODM_RTL8198F)
 		phydm_get_power_trim_offset_8198f(dm_void);
+	else if (dm->support_ic_type & ODM_RTL8703B)
+		phydm_get_power_trim_offset_8703b(dm_void);
 }
 
 void phydm_get_pa_bias_offset(void *dm_void)
@@ -4594,7 +4669,7 @@ void phydm_do_kfree(void *dm_void, u8 channel_to_sw)
 	} else if (dm->support_ic_type & ODM_RTL8821C) {
 		max_path = 1;
 		kfree_band_num = KFREE_BAND_NUM;
-	} else if (dm->support_ic_type & ODM_RTL8710B) {
+	} else if (dm->support_ic_type & (ODM_RTL8710B | ODM_RTL8703B)) {
 		max_path = 1;
 		kfree_band_num = 1;
 	} else if (dm->support_ic_type & ODM_RTL8198F) {
@@ -4604,7 +4679,7 @@ void phydm_do_kfree(void *dm_void, u8 channel_to_sw)
 
 	if (dm->support_ic_type &
 	    (ODM_RTL8192F | ODM_RTL8822B | ODM_RTL8821C |
-	    ODM_RTL8814A | ODM_RTL8710B)) {
+	    ODM_RTL8814A | ODM_RTL8710B | ODM_RTL8703B)) {
 		for (i = 0; i < kfree_band_num; i++) {
 			for (j = 0; j < max_path; j++)
 				RF_DBG(dm, DBG_RF_MP,

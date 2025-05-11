@@ -967,6 +967,7 @@ void phydm_adaptivity_info_init(void *dm_void, enum phydm_adapinfo cmn_info,
 		break;
 	case PHYDM_ADAPINFO_TH_L2H_INI:
 		dm->th_l2h_ini = (s8)value;
+		dm->th_l2h_ini_custom = (s8)value;
 		break;
 	case PHYDM_ADAPINFO_TH_EDCCA_HL_DIFF:
 		dm->th_edcca_hl_diff = (s8)value;
@@ -1050,8 +1051,10 @@ void phydm_adaptivity_init(void *dm_void)
 	phydm_l2h_ini_recorder_reset(dm);
 #elif (DM_ODM_SUPPORT_TYPE & ODM_CE)
 	if (!dm->carrier_sense_enable) {
-		if (dm->th_l2h_ini == 0)
+		if (dm->th_l2h_ini_custom == 0)
 			phydm_set_l2h_th_ini(dm);
+	        else
+			dm->th_l2h_ini = dm->th_l2h_ini_custom;
 	} else {
 		phydm_set_l2h_th_ini_carrier_sense(dm);
 	}
@@ -1169,8 +1172,12 @@ void phydm_adaptivity(void *dm_void)
 		if (*dm->edcca_mode == PHYDM_EDCCA_ADAPT_MODE &&
 		    dm->carrier_sense_enable)
 			phydm_set_l2h_th_ini_carrier_sense(dm);
-		else if (*dm->edcca_mode == PHYDM_EDCCA_ADAPT_MODE)
-			phydm_set_l2h_th_ini(dm);
+		else if (*dm->edcca_mode == PHYDM_EDCCA_ADAPT_MODE){
+			if (dm->th_l2h_ini_custom == 0)
+				phydm_set_l2h_th_ini(dm);
+			else
+				dm->th_l2h_ini = dm->th_l2h_ini_custom;
+		}
 	}
 #endif
 	PHYDM_DBG(dm, DBG_ADPTVTY, "%s ====>\n", __func__);

@@ -1587,7 +1587,9 @@ void halrf_watchdog(void *dm_void)
 
 	if (dm->support_ic_type & ODM_RTL8822E)
 		halrf_lck_track(dm);
-
+#ifdef  HALRF_DZ_LOG
+	halrf_rpt_rt_rfk_info(dm);
+#endif
 	halrf_dpk_track(dm);
 #if (RTL8723F_SUPPORT == 1)
 	if (dm->support_ic_type & ODM_RTL8723F){
@@ -1786,6 +1788,7 @@ void halrf_rf_k_connect_trigger(void *dm_void, boolean is_recovery,
 			*rf->is_carrier_suppresion))
 			return;
 	}
+	rf->is_connect_k = true;
 
 //	if(dm->support_ic_type == ODM_RTL8822E)
 //		halrf_dack_trigger(dm, false);
@@ -1830,7 +1833,7 @@ void halrf_rf_k_connect_trigger(void *dm_void, boolean is_recovery,
 	if(dm->support_ic_type == ODM_RTL8723F)
 		halrf_dis_cca_8723f(dm, false);
 #endif
-
+        rf->is_connect_k = false;
 }
 
 void config_halrf_path_adda_setting_trigger(void *dm_void)
@@ -1876,6 +1879,9 @@ void halrf_dack_trigger(void *dm_void, boolean force)
 {
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
 	struct _hal_rf_ *rf = &dm->rf_table;
+#ifdef HALRF_DZ_LOG
+	struct halrf_rfk_dz_rpt *rfk_dz = &rf->rfk_dz_rpt;
+#endif
 
 	u64 start_time;
 
@@ -1883,6 +1889,9 @@ void halrf_dack_trigger(void *dm_void, boolean force)
 		return;
 
 	start_time = odm_get_current_time(dm);
+#ifdef HALRF_DZ_LOG
+	rfk_dz->dack_dz_code = 0x0;
+#endif
 
 	switch (dm->support_ic_type) {
 #if (RTL8822C_SUPPORT == 1)
@@ -1945,6 +1954,27 @@ void halrf_dack_dbg(void *dm_void)
 	}
 }
 
+#ifdef HALRF_DZ_LOG
+void _halrf_display_dack_info(void *dm_void, u32 *_used, char *output, u32 *_out_len)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	u32 used = *_used;
+	u32 out_len = *_out_len;
+
+	switch (dm->support_ic_type) {
+#if (RTL8822E_SUPPORT == 1)
+		case ODM_RTL8822E:
+			dack_info_by_8822e(dm, &used, output, &out_len);
+		break;
+#endif
+		default:
+		break;
+	}
+
+	*_used = used;
+	*_out_len = out_len;
+}
+#endif
 
 void halrf_segment_iqk_trigger(void *dm_void, boolean clear,
 			       boolean segment_iqk)
@@ -1953,6 +1983,11 @@ void halrf_segment_iqk_trigger(void *dm_void, boolean clear,
 	struct dm_iqk_info *iqk_info = &dm->IQK_info;
 	struct _hal_rf_ *rf = &dm->rf_table;
 	u64 start_time;
+	
+#ifdef HALRF_DZ_LOG
+	struct halrf_rfk_dz_rpt *rfk_dz = &rf->rfk_dz_rpt;
+	rfk_dz->iqk_dz_code = 0x0;
+#endif
 
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
 	if (odm_check_power_status(dm) == false)
@@ -2625,7 +2660,9 @@ void halrf_rx_dck_trigger(void *dm_void)
 {
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
 	struct _hal_rf_ *rf = &dm->rf_table;
-
+#ifdef HALRF_DZ_LOG
+	struct halrf_rfk_dz_rpt *rfk_dz = &rf->rfk_dz_rpt;
+#endif
 	u64 start_time;
 
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
@@ -2651,7 +2688,9 @@ void halrf_rx_dck_trigger(void *dm_void)
 	halrf_rfk_handshake(dm, true);
 
 	start_time = odm_get_current_time(dm);
-
+#ifdef HALRF_DZ_LOG
+	rfk_dz->dack_dz_code = 0x0;
+#endif
 	switch (dm->support_ic_type) {
 #if 0
 	case ODM_RTL8822C:
@@ -2667,7 +2706,8 @@ void halrf_rx_dck_trigger(void *dm_void)
 #endif
 #if (RTL8822E_SUPPORT == 1)
 	case ODM_RTL8822E:
-		halrf_rx_dck_8822e(dm);
+		if (!rf->is_connect_k) /*DPK will do RXDCK in connect_k*/
+			halrf_rx_dck_8822e(dm);
 		break;
 #endif
 	default:
@@ -2730,6 +2770,22 @@ void _halrf_rx_dck_info_by_chip(void *dm_void, u32 *_used, char *output, u32 *_o
 	*_used = used;
 	*_out_len = out_len;
 }
+#ifdef HALRF_DZ_LOG
+void _halrf_ex_rx_dck_info_by_chip(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+
+	switch (dm->support_ic_type) {
+#if (RTL8822E_SUPPORT == 1)
+	case ODM_RTL8822E:
+		halrf_ex_rx_dck_dbg_info_8822e(dm);
+		break;
+#endif
+	default:
+		break;
+	}
+}
+#endif
 
 void _halrf_display_rx_dck_info(void *dm_void, u32 *_used, char *output, u32 *_out_len)
 {
@@ -2942,7 +2998,9 @@ void halrf_dpk_trigger(void *dm_void)
 	struct _hal_rf_ *rf = &dm->rf_table;
 	struct dm_dpk_info *dpk_info = &dm->dpk_info;
 	struct dm_iqk_info *iqk_info = &dm->IQK_info;
-
+#ifdef HALRF_DZ_LOG
+	struct halrf_rfk_dz_rpt *rfk_dz = &rf->rfk_dz_rpt;
+#endif
 	u64 start_time;
 
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
@@ -2979,11 +3037,15 @@ void halrf_dpk_trigger(void *dm_void)
 		rf->is_dpk_in_progress = true;
 		odm_release_spin_lock(dm, RT_IQK_SPINLOCK);
 		start_time = odm_get_current_time(dm);
+#ifdef HALRF_DZ_LOG
+	        rfk_dz->dack_dz_code = 0x0;
+#endif
 		halrf_rfk_power_save(dm, false);
 		switch (dm->support_ic_type) {
 #if (RTL8822C_SUPPORT == 1)
 		case ODM_RTL8822C:
-			do_dpk_8822c(dm);
+			if((dm->rfe_type != 8) && (dm->rfe_type != 9))
+				do_dpk_8822c(dm);
 		break;
 #endif
 #if (RTL8814C_SUPPORT == 1)
@@ -3429,7 +3491,8 @@ void halrf_dpk_enable_disable(void *dm_void)
 	switch (dm->support_ic_type) {
 #if (RTL8822C_SUPPORT == 1)
 	case ODM_RTL8822C:
-		dpk_enable_disable_8822c(dm);
+		if((dm->rfe_type != 8) && (dm->rfe_type != 9))
+			dpk_enable_disable_8822c(dm);
 		break;
 #endif
 #if (RTL8195B_SUPPORT == 1)
@@ -3546,7 +3609,8 @@ void halrf_dpk_track(void *dm_void)
 
 #if (RTL8822C_SUPPORT == 1)
 	case ODM_RTL8822C:
-		dpk_track_8822c(dm);
+		if((dm->rfe_type != 8) && (dm->rfe_type != 9))
+			dpk_track_8822c(dm);
 		break;
 #endif
 
@@ -3769,6 +3833,23 @@ void _halrf_dpk_info_by_chip(void *dm_void, u32 *_used, char *output, u32 *_out_
 	*_used = used;
 	*_out_len = out_len;
 }
+
+#ifdef HALRF_DZ_LOG
+void _halrf_ex_dpk_info_by_chip(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+
+	switch (dm->support_ic_type) {
+#if (RTL8822E_SUPPORT == 1)
+	case ODM_RTL8822E:
+		ex_dpk_info_by_8822e(dm);
+		break;
+#endif
+	default:
+		break;
+	}
+}
+#endif
 
 void _halrf_display_dpk_info(void *dm_void, u32 *_used, char *output, u32 *_out_len)
 {
@@ -4231,7 +4312,9 @@ void halrf_txgapk_trigger(void *dm_void)
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
 	struct _hal_rf_ *rf = &dm->rf_table;
 	u64 start_time = 0x0;
-
+#ifdef HALRF_DZ_LOG
+	struct halrf_rfk_dz_rpt *rfk_dz = &rf->rfk_dz_rpt;
+#endif
 	if (!(rf->rf_supportability & HAL_RF_TXGAPK))
 		return;
 
@@ -4239,6 +4322,9 @@ void halrf_txgapk_trigger(void *dm_void)
 	halrf_rfk_handshake(dm, true);
 
 	start_time = odm_get_current_time(dm);
+#ifdef HALRF_DZ_LOG
+	rfk_dz->dack_dz_code = 0x0;
+#endif
 	rf->is_txgapk_in_progress = true;
 	halrf_rfk_power_save(dm, false);
 
@@ -5717,6 +5803,426 @@ void halrf_pwr_trk_debug_cmd(void *dm_void, char input[][16], u32 *_used,
 		halrf_set_pwr_trk_pg_ther(dm, (u8)thera, (u8)therb);
 	}
 }
+
+#ifdef  HALRF_DZ_LOG
+void halrf_ex_dack_info(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+
+	switch (dm->support_ic_type) {
+#if (RTL8822E_SUPPORT == 1)
+		case ODM_RTL8822E:
+			halrf_dack_dump_8822e(dm);
+
+			break;
+#endif
+		default:
+			break;
+	}
+}
+
+void halrf_ex_iqk_info(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	struct halrf_iqk_info *iqk_info = &rf->iqk;
+	char *ic_name = NULL;
+	u32 ver = 0;
+	u32 rfk_init_ver = 0;
+	u8 tmp = iqk_info->iqk_table_idx[0];
+	
+	ver = 0x0;
+	rfk_init_ver = 0x0;
+	RF_DBG(dm, DBG_RF_DZ_LOG, 
+		 "\n===============[ IQK info %s ]===============\n", ic_name);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = 0x%x\n",
+		 "IQK Version", ver);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = 0x%x\n",
+		 "RFK init ver", rfk_init_ver);	
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %d / %d / %d\n",
+		 "IQK Cal / Fail / Reload", iqk_info->iqk_times, iqk_info->iqk_fail_cnt,
+		 iqk_info->reload_cnt);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s / %d / %s\n",
+		 "S0 Band / CH / BW",  iqk_info->iqk_band[0]== 0 ? "2G" : (iqk_info->iqk_band[0] == 1 ? "5G" : "6G"),
+		 iqk_info->iqk_ch[0],
+		 iqk_info->iqk_bw[0] == 0 ? "20M" : (iqk_info->iqk_bw[0] == 1 ? "40M" : "80M"));	
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S0 NB/WB TXIQK", iqk_info->is_wb_txiqk[0]? "WBTXK" : "NBTXK");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S0 NB/WB RXIQK", iqk_info->is_wb_rxiqk[0]? "WBRXK" : "NBRXK");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S0 LOK status", (iqk_info->lok_cor_fail[0][0] | iqk_info->lok_fin_fail[0][0]) ? "Fail" : "Pass");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S0 TXK status", iqk_info->iqk_tx_fail[0][0]? "Fail" : "Pass");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S0 RXK status", iqk_info->iqk_rx_fail[0][0]? "Fail" : "Pass");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %x/ %x\n",
+		 "S0 LOK iDACK/VBUF", iqk_info->lok_idac[tmp][0], iqk_info->lok_vbuf[tmp][0]);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %x\n",
+		 "S0 TXK XYM", iqk_info->nb_txcfir[0]);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %x\n",
+		 "S0 RXK XYM", iqk_info->nb_rxcfir[0]);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s / %d / %s\n",
+		 "S1 Band / CH / BW",  iqk_info->iqk_band[1]== 0 ? "2G" : (iqk_info->iqk_band[1] == 1 ? "5G" : "6G"),
+		 iqk_info->iqk_ch[1],
+		 iqk_info->iqk_bw[1] == 0 ? "20M" : (iqk_info->iqk_bw[1] == 1 ? "40M" : "80M"));
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S1 NB/WB TXIQK", iqk_info->is_wb_txiqk[1]? "WBTXK" : "NBTXK");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S1 NB/WB RXIQK", iqk_info->is_wb_rxiqk[1]? "WBRXK" : "NBRXK");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S1 LOK status", (iqk_info->lok_cor_fail[0][1] | iqk_info->lok_fin_fail[0][1]) ? "Fail" : "Pass");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S1 TXK status", iqk_info->iqk_tx_fail[0][1]? "Fail" : "Pass");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "S1 RXK status", iqk_info->iqk_rx_fail[0][1]? "Fail" : "Pass");
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %x/  %x\n",
+		 "S1 LOK iDACK/VBUF", iqk_info->lok_idac[tmp][1], iqk_info->lok_vbuf[tmp][1]);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %x\n",
+		 "S1 TXK XYM", iqk_info->nb_txcfir[1]);
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %x\n",
+		 "S1 RXK XYM", iqk_info->nb_rxcfir[1]);
+}
+
+void halrf_ex_dpk_info(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct dm_dpk_info *dpk_info = &dm->dpk_info;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	char *ic_name = NULL;
+	u8 path;
+
+	switch (dm->support_ic_type) {
+#if (RTL8822E_SUPPORT)
+	case ODM_RTL8822E:
+		ic_name = "8822E";
+		break;
+#endif
+	default:
+	break;
+	}
+
+	RF_DBG(dm, DBG_RF_DZ_LOG,
+		 "\n===============[ DPK info %s ]===============\n", ic_name);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s %s\n",
+		 "DPK type", (dm->fw_offload_ability & PHYDM_RF_DPK_OFFLOAD) ? "FW" : "Driver",
+		 (dpk_info->is_dpk_by_channel) ? "(By channel)" : "(By group)");
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %d (%d)\n",
+		 "FW Ver (Sub Ver)", dm->fw_version, dm->fw_sub_version);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "DPK Ver", HALRF_DPK_VER);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "RFK init ver", HALRF_RFK_INIT_VER);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %d / %d (RFE type:%d)\n",
+		 "Ext_PA 2G / 5G", dm->ext_pa, dm->ext_pa_5g, dm->rfe_type);
+
+	if ((dpk_info->dpk_ch == 0) && (dpk_info->thermal_dpk[0] == 0)) {
+		RF_DBG(dm, DBG_RF_DZ_LOG, "\n %-25s\n",
+			 "No DPK had been done before!!!");
+		return;
+	}
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %d / %d / %d\n",
+		 "DPK Cal / OK / Reload", dpk_info->dpk_cal_cnt, dpk_info->dpk_ok_cnt,
+		 dpk_info->dpk_reload_cnt);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "RFK H2C timeout", (rf->is_rfk_h2c_timeout) ? "Yes" : "No");
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "DPD Reload", (dpk_info->dpk_status & BIT(0)) ? "Yes" : "No");
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "DPD status", dpk_info->is_dpk_enable ? "Enable" : "Disable");
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "DPD track status", (rf->rf_supportability & HAL_RF_DPK_TRACK) ? "Enable" : "Disable");
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s / %s / %d / %s\n",
+		 "TSSI / Band / CH / BW", dpk_info->is_tssi_mode == 1 ? "On" : "Off",
+		 dpk_info->dpk_band == 0 ? "2G" : "5G", dpk_info->dpk_ch,
+		 dpk_info->dpk_bw == 3 ? "20M" : (dpk_info->dpk_bw == 2 ? "40M" : "80M"));
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s / %s / %s / %s\n",
+		 "DPK result (path)", dpk_info->dpk_path_ok & BIT(0) ? "OK" : "Fail",
+		 (dm->support_ic_type & ODM_IC_2SS) ? ((dpk_info->dpk_path_ok & BIT(1)) >> 1 ? "OK" : "Fail") : "NA",
+		 (dm->support_ic_type & ODM_IC_3SS) ? ((dpk_info->dpk_path_ok & BIT(2)) >> 2 ? "OK" : "Fail") : "NA",
+		 (dm->support_ic_type & ODM_IC_4SS) ? ((dpk_info->dpk_path_ok & BIT(3)) >> 3 ? "OK" : "Fail") : "NA");
+#if 0
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = %d / %d / %d / %d\n",
+		 "DPK thermal (path)", dpk_info->thermal_dpk[0], dpk_info->thermal_dpk[1],
+		 dpk_info->thermal_dpk[2], dpk_info->thermal_dpk[3]);
+#endif
+	RF_DBG(dm, DBG_RF_DZ_LOG, " DPK thermal (path%d)%8s %d\n",
+		path, "=", dpk_info->thermal_dpk[path]);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = 0x%x\n",
+		 "DPK bkup GNT control", dpk_info->gnt_control);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = 0x%x\n",
+		 "DPK bkup GNT value", dpk_info->gnt_value);
+
+	_halrf_ex_dpk_info_by_chip(dm);
+}
+
+void halrf_ex_rx_dck_info(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	struct _halrf_rxdck_info *rx_dck = &(rf->halrf_rxdck_info);
+
+	char *ic_name = NULL;
+	u8 path;
+	u32 addr = 0;
+	u32 reg_05[KPATH];
+
+	switch (dm->support_ic_type) {
+
+#if (RTL8735B_SUPPORT)
+	case ODM_RTL8735B:
+		ic_name = "8735B";
+		break;
+#endif
+#if (RTL8822E_SUPPORT)
+	case ODM_RTL8822E:
+		ic_name = "8822E";
+		break;
+#endif
+	default:
+		break;
+	}
+
+	RF_DBG(dm, DBG_RF_DZ_LOG,
+		 "\n===============[ RX_DCK info %s ]===============\n", ic_name);
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "RX_DCK Ver", HALRF_RXDCK_VER);
+
+	if (rx_dck->rxdck_ch == 0) {
+	RF_DBG(dm, DBG_RF_DZ_LOG, "\n %-25s\n",
+			 "No RX_DCK had been done before!!!");
+		return;
+	}
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s / %d / %s\n",
+		 "Band / CH / BW", rx_dck->rxdck_band == 0 ? "2G" : "5G", rx_dck->rxdck_ch,
+		 rx_dck->rxdck_bw == 3 ? "20M" : (rx_dck->rxdck_bw == 2 ? "40M" : "80M"));
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "RX_DCK timeout", rx_dck->is_rxdck_timeout ? "Yes" : "No");
+
+	RF_DBG(dm, DBG_RF_DZ_LOG, " %-25s = %s\n",
+		 "RX_DCK status", rx_dck->is_rxdck_off ? "Off" : "On");
+
+	_halrf_ex_rx_dck_info_by_chip(dm);
+}
+
+void halrf_ex_gapk_info(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+}
+
+void halrf_ex_rfk_info(void *dm_void, u32 *_used, 
+			 char *output, u32 *_out_len)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	halrf_ex_dack_info(dm);
+	halrf_ex_iqk_info(dm);
+	halrf_ex_dpk_info(dm);
+	halrf_ex_rx_dck_info(dm);
+}
+
+
+void halrf_rt_rfk_info(void *dm_void, char input[][16], u32 *_used,
+			 char *output, u32 *_out_len)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	struct halrf_rt_rpt *rpt = &rf->rf_rt_rpt;
+
+	u32 used = *_used;
+	u32 out_len = *_out_len;
+
+	PDM_SNPF(out_len, used, output + used, out_len - used,
+		 "\n===============[real time RFK info]===============\n");
+
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x]\n",
+		 "S0 last CH",
+		 rpt->ch_info[0][0][0], rpt->ch_info[1][0][0], rpt->ch_info[2][0][0], rpt->ch_info[3][0][0],
+		rpt->ch_info[4][0][0], rpt->ch_info[5][0][0], rpt->ch_info[6][0][0], rpt->ch_info[7][0][0],
+		rpt->ch_info[8][0][0], rpt->ch_info[9][0][0]);
+
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x]\n",
+		 "S0 last CV",
+		rpt->ch_info[0][0][1], rpt->ch_info[1][0][1], rpt->ch_info[2][0][1], rpt->ch_info[3][0][1],
+		rpt->ch_info[4][0][1], rpt->ch_info[5][0][1], rpt->ch_info[6][0][1], rpt->ch_info[7][0][1],
+		rpt->ch_info[8][0][1], rpt->ch_info[9][0][1]);
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x]\n",
+		 "S1 last CH",
+		rpt->ch_info[0][1][0], rpt->ch_info[1][1][0], rpt->ch_info[2][1][0], rpt->ch_info[3][1][0],
+		rpt->ch_info[4][1][0], rpt->ch_info[5][1][0], rpt->ch_info[6][1][0], rpt->ch_info[7][1][0],
+		rpt->ch_info[8][1][0], rpt->ch_info[9][1][0]
+		);
+
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x]\n",
+		 "S1 last CV",
+		rpt->ch_info[0][1][1], rpt->ch_info[1][1][1], rpt->ch_info[2][1][1], rpt->ch_info[3][1][1],
+		rpt->ch_info[4][1][1], rpt->ch_info[5][1][1], rpt->ch_info[6][1][1], rpt->ch_info[7][1][1],
+		rpt->ch_info[8][1][1], rpt->ch_info[9][1][1]
+		);
+
+	*_used = used;
+	*_out_len = out_len;
+}
+
+void halrf_rfk_info(void *dm_void, char input[][16], u32 *_used,
+			 char *output, u32 *_out_len)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	struct halrf_rfk_dz_rpt *rpt = &rf->rfk_dz_rpt;
+	u32 used = *_used;
+	u32 out_len = *_out_len;
+
+	PDM_SNPF(out_len, used, output + used, out_len - used,
+		 "\n===============[ALL RFK info]===============\n");
+
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%x]\n",
+		 "IQK_DZ_CODE", rpt->iqk_dz_code);
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%x]\n",
+		 "DPK_DZ_CODE", rpt->dpk_dz_code);
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%x]\n",
+		 "DACK_DZ_CODE",rpt->dack_dz_code);
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%x]\n",
+		 "RXDCK_DZ_CODE",rpt->rxdck_dz_code);
+	PDM_SNPF(out_len, used, output + used, out_len - used, " %-25s = [0x%x]\n",
+		 "TXGAPK_DZ_CODE",rpt->txgapk_dz_code);
+
+	if (rpt->iqk_dz_code != 0) {
+	}
+
+	if (rpt->dpk_dz_code !=0) {
+		_halrf_display_dpk_info(dm, &used, output, &out_len);
+	}
+
+	if (rpt->dack_dz_code !=0) {
+		_halrf_display_dack_info(dm, &used, output, &out_len);
+	}
+
+	if (rpt->rxdck_dz_code !=0) {
+		_halrf_display_rx_dck_info(dm, &used, output, &out_len);
+	}
+
+	*_used = used;
+	*_out_len = out_len;
+}
+
+void halrf_ex_rt_rfk_info(void *dm_void, u32 *_used, 
+			 char *output, u32 *_out_len)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	struct halrf_rt_rpt *rpt = &rf->rf_rt_rpt;
+
+	u32 used = *_used;
+	u32 out_len = *_out_len;
+
+	PDM_SNPF(out_len, used, output + used, out_len - used,"s0 ch=[0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] \n",
+		rpt->ch_info[0][0][0], rpt->ch_info[1][0][0], rpt->ch_info[2][0][0], rpt->ch_info[3][0][0],
+		rpt->ch_info[4][0][0], rpt->ch_info[5][0][0], rpt->ch_info[6][0][0], rpt->ch_info[7][0][0],
+		rpt->ch_info[8][0][0], rpt->ch_info[9][0][0]
+		);
+	PDM_SNPF(out_len, used, output + used, out_len - used,"s0 cv=[0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] \n",
+		rpt->ch_info[0][0][1], rpt->ch_info[1][0][1], rpt->ch_info[2][0][1], rpt->ch_info[3][0][1],
+		rpt->ch_info[4][0][1], rpt->ch_info[5][0][1], rpt->ch_info[6][0][1], rpt->ch_info[7][0][1],
+		rpt->ch_info[8][0][1], rpt->ch_info[9][0][1]
+		);
+	PDM_SNPF(out_len, used, output + used, out_len - used,"s1 ch=[0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] \n",
+		rpt->ch_info[0][1][0], rpt->ch_info[1][1][0], rpt->ch_info[2][1][0], rpt->ch_info[3][1][0],
+		rpt->ch_info[4][1][0], rpt->ch_info[5][1][0], rpt->ch_info[6][1][0], rpt->ch_info[7][1][0],
+		rpt->ch_info[8][1][0], rpt->ch_info[9][1][0]
+		);
+	PDM_SNPF(out_len, used, output + used, out_len - used,"s1 cv=[0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] [0x%03x] \n",
+		rpt->ch_info[0][1][1], rpt->ch_info[1][1][1], rpt->ch_info[2][1][1], rpt->ch_info[3][1][1],
+		rpt->ch_info[4][1][1], rpt->ch_info[5][1][1], rpt->ch_info[6][1][1], rpt->ch_info[7][1][1],
+		rpt->ch_info[8][1][1], rpt->ch_info[9][1][1]
+		);
+
+	*_used = used;
+	*_out_len = out_len;
+}
+
+void halrf_dz_dbg_cmd(void *dm_void, char input[][16], u32 *_used, 
+			 char *output, u32 *_out_len)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+
+	u32 used = *_used;
+	u32 out_len = *_out_len;
+	char *cmd[3] = {"-h", "rtinfo", "rfkinfo"};
+	u8 i;
+
+	if (strcmp(input[2], cmd[0]) == 0) {
+		for (i = 1; i < 3; i++)
+			PDM_SNPF(out_len, used, output + used, out_len - used,
+				 "  %s\n", cmd[i]);
+	} else if (strcmp(input[2], cmd[1]) == 0) {
+		if (strcmp(input[3], "-h") == 0)
+			PDM_SNPF(out_len, used, output + used, out_len - used,
+				 " EX: echo rf dz_dbg rtinfo\n");
+		else {
+			halrf_ex_rt_rfk_info(dm, &used, output, &out_len);
+			halrf_rt_rfk_info(dm, input, &used, output, &out_len);
+			PDM_SNPF(out_len, used, output + used, out_len - used,
+				 " halrf ex rt rfk info\n");
+		}
+	} else if (strcmp(input[2], cmd[2]) == 0) {
+		if (strcmp(input[3], "-h") == 0)
+			PDM_SNPF(out_len, used, output + used, out_len - used,
+				 " EX: echo rf dz_dbg rfkinfo\n");
+		else {
+			PDM_SNPF(out_len, used, output + used, out_len - used,
+				 " halrf ex rfk info\n");
+			halrf_ex_rfk_info(dm, &used, output, &out_len);
+			halrf_rfk_info(dm, input, &used, output, &out_len);
+		}
+	}else
+		PDM_SNPF(*_out_len, *_used, output + *_used, *_out_len - *_used,
+				 " No CMD find!!\n");
+
+	*_used = used;
+	*_out_len = out_len;
+}
+
+void halrf_rpt_rt_rfk_info(void *dm_void)
+{
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &(dm->rf_table);
+	struct halrf_rt_rpt *rpt = &rf->rf_rt_rpt;
+
+	u8 i;	
+
+	// rf->rfk_is_processing = true;
+	for (i = 0; i < 9; i++) {
+		rpt->ch_info[9 - i][0][0] = rpt->ch_info[8 - i][0][0];
+		rpt->ch_info[9 - i][0][1] = rpt->ch_info[8 - i][0][1];
+		rpt->ch_info[9 - i][1][0] = rpt->ch_info[8 - i][1][0];
+		rpt->ch_info[9 - i][1][1] = rpt->ch_info[8 - i][1][1];
+	}
+
+	for (i = 0; i < 2; i++) {
+		rpt->ch_info[0][i][0] = odm_get_rf_reg(dm, i, 0x18, 0x1ff);
+		rpt->ch_info[0][i][1] = odm_get_rf_reg(dm, i, 0xb2, 0x3ff);
+	}
+	// rf->rfk_is_processing = false;
+}
+#endif
 
 /*Golbal function*/
 void halrf_reload_bp(void *dm_void, u32 *bp_reg, u32 *bp, u32 num)
