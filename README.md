@@ -5,7 +5,17 @@ NEEDS TEST, use it at your own risk!
 
 Original driver tar: [rtl88x2EU_rtl88x2CU-VE_WiFi_linux_v5.15.0.1-249-g9245f8bd9.20241218_COEX20240913-390e.tar.gz](https://github.com/user-attachments/files/20148280/rtl88x2EU_rtl88x2CU-VE_WiFi_linux_v5.15.0.1-249-g9245f8bd9.20241218_COEX20240913-390e.tar.gz) 
 
-Release History (by Realtek):  
+TX 5MHz: 
+ - `iw 5MHz` + `wfb_tx -B 20`, not working, single tone output
+
+TX 40MHz:
+ - `iw HT40-/+` + `wfb_tx -B 40`, not good, glitches
+ - `iw 80MHz` + `wfb_tx -B 40`, **seems good, needs more test**
+
+TX 80MHz:
+ - `iw 80MHz` + `wfb_tx -B 80`, **seems good, needs more test**
+
+# Release History (by Realtek):  
 v5.15.0.1-197-ge90764eb9.20231128_COEX20230616-330a
 1. Fix WOW download FW fail
 2. Fix kernel panics after driver removed
