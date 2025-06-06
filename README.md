@@ -15,6 +15,14 @@ TX 40MHz:
 TX 80MHz:
  - `iw 80MHz` + `wfb_tx -B 80`, **seems good, needs more test**
 
+## Tuning for Long Range AP/STA
+About [this commit](https://github.com/libc0607/rtl88x2eu-20230815/commit/e5227dc82212b355bdfd06fb1b1941f4a8c56122): start reading from [Modeling and Optimizing IEEE 802.11 DCF for Long-Distance Links](https://ieeexplore.ieee.org/document/5408366/)  
+Now we have /proc APIs: `ack_timeout`, `cts2_timeout`, `slot_time`, and `edca_params`  
+
+But as there's no document of this crab chip, I don't know how it actually works  
+(The `ack timeout` is proven working. At [here](https://github.com/libc0607/rtl88x2eu-20230815/tree/beamforming_research?tab=readme-ov-file#some-picture) -- the waveform will change when set to different ack timeouts)   
+
+
 # Release History (by Realtek):  
 v5.15.0.1-197-ge90764eb9.20231128_COEX20230616-330a
 1. Fix WOW download FW fail
