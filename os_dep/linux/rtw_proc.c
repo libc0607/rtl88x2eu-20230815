@@ -6192,6 +6192,90 @@ static ssize_t proc_set_single_tone(struct file *file, const char __user *buffer
 	return count;
 }
 
+int proc_get_write_rfreg(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+
+        RTW_PRINT_SEL(m, "RF reg read & write usage:\n");
+        RTW_PRINT_SEL(m, "\n");
+        RTW_PRINT_SEL(m, "Write RF reg: \n");
+        RTW_PRINT_SEL(m, "\techo \"<8'h_addr> <20'h_val>\" > write_rfreg \n");
+        RTW_PRINT_SEL(m, "Read RF reg: \n");
+        RTW_PRINT_SEL(m, "\techo \"<8'h_addr>\" > read_rfreg && cat read_rfreg\n");
+	return 0;
+}
+
+ssize_t proc_set_write_rfreg(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	char tmp[32];
+	u32 addr, val;
+
+	if (count < 2) {
+		RTW_INFO("%s: argument size is less than 2\n", __FUNCTION__);
+		return -EFAULT;
+	}
+
+	if (count > sizeof(tmp)) {
+		rtw_warn_on(1);
+		return -EFAULT;
+	}
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+		int num = sscanf(tmp, "%x %x", &addr, &val);
+		if (num != 2) {
+			RTW_INFO("%s: invalid parameter!\n", __FUNCTION__);
+			return count;
+		}
+                phy_set_rf_reg(padapter, RF_PATH_A, addr&0xff, val&0xfffff, 0xfffff);
+	}
+	return count;
+}
+
+static u8 proc_get_read_rf_addr = 0x0;
+
+int proc_get_read_rfreg(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+
+	RTW_PRINT_SEL(m, "phy_query_rf_reg(RF_PATH_A, 0x%x)=0x%x\n", 
+	  proc_get_read_rf_addr, 
+	  phy_query_rf_reg(padapter, RF_PATH_A, proc_get_read_rf_addr, 0xfffff)
+	);
+	return 0;
+}
+
+ssize_t proc_set_read_rfreg(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	char tmp[16];
+	u8 addr;
+
+	if (count < 1) {
+		RTW_INFO("%s: argument size is less than 1\n", __FUNCTION__);
+		return -EFAULT;
+	}
+
+	if (count > sizeof(tmp)) {
+		rtw_warn_on(1);
+		return -EFAULT;
+	}
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+
+		int num = sscanf(tmp, "%hhx", &addr);
+
+		if (num != 1) {
+			RTW_INFO("%s: invalid parameter\n", __FUNCTION__);
+			return count;
+		}
+		proc_get_read_rf_addr = addr;
+	}
+	return count;
+}
+
 #ifdef CONFIG_BEAMFORMING_MONITOR
 static int proc_get_bf_monitor_conf(struct seq_file *m, void *v)
 {
@@ -6369,6 +6453,8 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
         RTW_PROC_HDL_SSEQ("thermal_state", proc_get_thermal_state, proc_set_thermal_state),
         RTW_PROC_HDL_SSEQ("dis_cca", proc_get_dis_cca, proc_set_dis_cca),
         RTW_PROC_HDL_SSEQ("single_tone", proc_get_single_tone, proc_set_single_tone),
+        RTW_PROC_HDL_SSEQ("write_rfreg", proc_get_write_rfreg, proc_set_write_rfreg),
+        RTW_PROC_HDL_SSEQ("read_rfreg", proc_get_read_rfreg, proc_set_read_rfreg),
 #ifdef CONFIG_BEAMFORMING_MONITOR
         RTW_PROC_HDL_SSEQ("bf_monitor_conf", proc_get_bf_monitor_conf, proc_set_bf_monitor_conf),
         RTW_PROC_HDL_SSEQ("bf_monitor_trig", proc_get_bf_monitor_trig, proc_set_bf_monitor_trig),
