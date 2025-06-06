@@ -1499,7 +1499,7 @@ u8 rtw_is_tbtx_capabilty(u8 *p, u8 len){
 
 void WMMOnAssocRsp(_adapter *padapter)
 {
-	u8	ACI, ACM, AIFS, ECWMin, ECWMax, aSifsTime, slottime;
+	u8	ACI, ACM, AIFS, ECWMin, ECWMax, aSifsTime;
 	u8	acm_mask;
 	u16	TXOP;
 	u32	acParm, i;
@@ -1530,22 +1530,10 @@ void WMMOnAssocRsp(_adapter *padapter)
                 aSifsTime = 64;
 #endif /* CONFIG_NARROWBAND_SUPPORTING */
 
-	if (pmlmeinfo->sifs_override_en == 1) {
-		aSifsTime = pmlmeinfo->sifs_override;
-		RTW_INFO("WMMOnAssocRsp: sifs_override enabled, %d\n", aSifsTime);
-	}
-	
-	if (pmlmeinfo->slottime_override_en == 0) {
-		slottime = pmlmeinfo->slotTime;
-	} else {
-		slottime = pmlmeinfo->slottime_override;
-		RTW_INFO("WMMOnAssocRsp: slottime_override enabled, %d\n", slottime);
-	}
-
 	if (pmlmeinfo->WMM_enable == 0) {
 		padapter->mlmepriv.acm_mask = 0;
 
-		AIFS = aSifsTime + (2 * slottime);
+		AIFS = aSifsTime + (2 * pmlmeinfo->slotTime);
 
 		if (pmlmeext->cur_wireless_mode & (WIRELESS_11G | WIRELESS_11A)) {
 			ECWMin = 4;
@@ -1577,7 +1565,7 @@ void WMMOnAssocRsp(_adapter *padapter)
 			ACM = (pmlmeinfo->WMM_param.ac_param[i].ACI_AIFSN >> 4) & 0x01;
 
 			/* AIFS = AIFSN * slot time + SIFS - r2t phy delay */
-			AIFS = (pmlmeinfo->WMM_param.ac_param[i].ACI_AIFSN & 0x0f) * slottime + aSifsTime;
+			AIFS = (pmlmeinfo->WMM_param.ac_param[i].ACI_AIFSN & 0x0f) * pmlmeinfo->slotTime + aSifsTime;
 
 			ECWMin = (pmlmeinfo->WMM_param.ac_param[i].CW & 0x0f);
 			ECWMax = (pmlmeinfo->WMM_param.ac_param[i].CW & 0xf0) >> 4;
@@ -3624,12 +3612,7 @@ void update_capinfo(PADAPTER Adapter, u16 updateCap)
 #endif /* CONFIG_NARROWBAND_SUPPORTING */
 
 	
-	if (pmlmeinfo->slottime_override_en == 1) {
-		rtw_hal_set_hwreg(Adapter, HW_VAR_SLOT_TIME, (u8*)&pmlmeinfo->slottime_override);
-		RTW_INFO("update_capinfo: slottime_override enabled, %d\n", pmlmeinfo->slottime_override);
-	} else {
-		rtw_hal_set_hwreg(Adapter, HW_VAR_SLOT_TIME, &pmlmeinfo->slotTime);
-	}
+	rtw_hal_set_hwreg(Adapter, HW_VAR_SLOT_TIME, &pmlmeinfo->slotTime);
 }
 
 /*

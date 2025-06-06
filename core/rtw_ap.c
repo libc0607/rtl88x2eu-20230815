@@ -1297,7 +1297,7 @@ static void update_ap_info(_adapter *padapter, struct sta_info *psta)
 
 static void rtw_set_hw_wmm_param(_adapter *padapter)
 {
-	u8	AIFS, ECWMin, ECWMax, aSifsTime, slottime;
+	u8	AIFS, ECWMin, ECWMax, aSifsTime;
 	u8	acm_mask;
 	u16	TXOP;
 	u32	acParm, i;
@@ -1316,23 +1316,11 @@ static void rtw_set_hw_wmm_param(_adapter *padapter)
 	else
 #endif /* CONFIG_80211N_HT */
 		aSifsTime = 10;
-		
-	if (pmlmeinfo->sifs_override_en == 1) {
-		aSifsTime = pmlmeinfo->sifs_override;
-		RTW_INFO("rtw_set_hw_wmm_param: sifs_override enabled, %d\n", aSifsTime);
-	}
-	
-	if (pmlmeinfo->slottime_override_en == 0) {
-		slottime = pmlmeinfo->slotTime;
-	} else {
-		slottime = pmlmeinfo->slottime_override;
-		RTW_INFO("rtw_set_hw_wmm_param: slottime_override enabled, %d\n", slottime);
-	}
 
 	if (pmlmeinfo->WMM_enable == 0) {
 		padapter->mlmepriv.acm_mask = 0;
 
-		AIFS = aSifsTime + (2 * slottime);
+		AIFS = aSifsTime + (2 * pmlmeinfo->slotTime);
 
 		if (pmlmeext->cur_wireless_mode & (WIRELESS_11G | WIRELESS_11A)) {
 			ECWMin = 4;
@@ -1368,7 +1356,7 @@ static void rtw_set_hw_wmm_param(_adapter *padapter)
 		/* BK */
 		/* AIFS = AIFSN * slot time + SIFS - r2t phy delay */
 #endif
-		AIFS = (7 * slottime) + aSifsTime;
+		AIFS = (7 * pmlmeinfo->slotTime) + aSifsTime;
 		ECWMin = 4;
 		ECWMax = 10;
 		TXOP = 0;
@@ -1378,7 +1366,7 @@ static void rtw_set_hw_wmm_param(_adapter *padapter)
 		RTW_INFO("WMM(BK): %x\n", acParm);
 
 		/* BE */
-		AIFS = (3 * slottime) + aSifsTime;
+		AIFS = (3 * pmlmeinfo->slotTime) + aSifsTime;
 		ECWMin = 4;
 		ECWMax = 6;
 		TXOP = 0;
@@ -1388,7 +1376,7 @@ static void rtw_set_hw_wmm_param(_adapter *padapter)
 		RTW_INFO("WMM(BE): %x\n", acParm);
 
 		/* VI */
-		AIFS = (1 * slottime) + aSifsTime;
+		AIFS = (1 * pmlmeinfo->slotTime) + aSifsTime;
 		ECWMin = 3;
 		ECWMax = 4;
 		TXOP = 94;
@@ -1398,7 +1386,7 @@ static void rtw_set_hw_wmm_param(_adapter *padapter)
 		RTW_INFO("WMM(VI): %x\n", acParm);
 
 		/* VO */
-		AIFS = (1 * slottime) + aSifsTime;
+		AIFS = (1 * pmlmeinfo->slotTime) + aSifsTime;
 		ECWMin = 2;
 		ECWMax = 3;
 		TXOP = 47;

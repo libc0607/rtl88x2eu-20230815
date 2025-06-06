@@ -1755,155 +1755,6 @@ static ssize_t proc_set_edcca_threshold_jaguar3_override(struct file *file, cons
 	return count;
 }
 
-static int proc_get_slottime_override(struct seq_file *m, void *v)
-{
-	struct net_device *dev = m->private;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
-	struct registry_priv	*pregpriv = &padapter->registrypriv;
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
-	struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
-
-	RTW_PRINT_SEL(m, "Slot Time Override\n");
-	RTW_PRINT_SEL(m, "Github: libc0607/rtl88x2eu-20230815\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "See DOI: 10.1109/TMC.2010.27 for why we need tuning this.\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "Usage: echo \"<en> <slottime>\" > slottime_override\n");
-	RTW_PRINT_SEL(m, "en:			0-disable, 1-enable\n");
-	RTW_PRINT_SEL(m, "slottime_override:	us\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "e.g.  \n");
-	RTW_PRINT_SEL(m, "\techo \"1 5\" > slottime_override\n");
-	RTW_PRINT_SEL(m, "\techo \"0 <any_number>\" > slottime_override\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "Disclaimer: There's no guarantee on performance. \n");
-	RTW_PRINT_SEL(m, "This operation may damage your hardware.\n");
-	RTW_PRINT_SEL(m, "You should obey the law, and use it at your own risk.\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "Current value: %u %u\n", pmlmeinfo->slottime_override_en, pmlmeinfo->slottime_override);
-	
-	return 0;
-}
-
-static ssize_t proc_set_slottime_override(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
-{
-	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
-	struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
-	char tmp[32];
-	u32 en, slottime;
-
-	if (!padapter)
-		return -EFAULT;
-
-	if (count < 2) {
-		RTW_INFO("slottime_override Argument error. \n");
-		return -EFAULT;
-	}
-
-	if (count > sizeof(tmp)) {
-		rtw_warn_on(1);
-		return -EFAULT;
-	}
-
-	if (buffer && !copy_from_user(tmp, buffer, count)) {
-		int num = sscanf(tmp, "%u %u", &en, &slottime);
-		if (num < 1)
-			return count;
-	}
-	
-	if (slottime < 0 || en < 0 || en > 1) {
-		RTW_INFO("out of range: %d %d\n", en, slottime);
-		return count;
-	}
-	
-	if (en == 0) {
-		slottime = 9; // should be the default value
-	}
-	
-	pmlmeinfo->slottime_override = slottime; 
-	pmlmeinfo->slottime_override_en = en; 
-	//rtw_hal_set_hwreg(padapter, HW_VAR_SLOT_TIME, (u8 *)(&slottime));
-	
-	RTW_INFO("Write to slottime_override: %u, %u\n", en, slottime);
-
-	return count;
-}
-
-static int proc_get_sifs_override(struct seq_file *m, void *v)
-{
-	struct net_device *dev = m->private;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
-	struct registry_priv	*pregpriv = &padapter->registrypriv;
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
-	struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
-	
-	RTW_PRINT_SEL(m, "SIFS Override\n");
-	RTW_PRINT_SEL(m, "Github: libc0607/rtl88x2eu-20230815\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "Usage: echo \"<en> <sifs>\" > sifs_override\n");
-	RTW_PRINT_SEL(m, "en: 0-disable, 1-enable\n");
-	RTW_PRINT_SEL(m, "sifs: SIFS time, in us\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "e.g.  \n");
-	RTW_PRINT_SEL(m, "\techo \"1 16\" > sifs_override\n");
-	RTW_PRINT_SEL(m, "\techo \"0 <any_number>\" > sifs_override\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "Disclaimer: There's no guarantee on performance. \n");
-	RTW_PRINT_SEL(m, "This operation may damage your hardware.\n");
-	RTW_PRINT_SEL(m, "You should obey the law, and use it at your own risk.\n");
-	RTW_PRINT_SEL(m, "\n");
-	RTW_PRINT_SEL(m, "Current value: %u %u\n", pmlmeinfo->sifs_override_en, pmlmeinfo->sifs_override);
-
-	return 0;
-}
-
-static ssize_t proc_set_sifs_override(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
-{
-	struct net_device *dev = data;
-	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
-	struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
-	char tmp[32];
-	u32 sifs_override, sifs_override_en;
-
-	if (!padapter)
-		return -EFAULT;
-
-	if (count < 2) {
-		RTW_INFO("sifs_override Argument error. \n");
-		return -EFAULT;
-	}
-
-	if (count > sizeof(tmp)) {
-		rtw_warn_on(1);
-		return -EFAULT;
-	}
-
-	if (buffer && !copy_from_user(tmp, buffer, count)) {
-		int num = sscanf(tmp, "%u %u", &sifs_override_en, &sifs_override);
-		if (num < 1)
-			return count;
-	}
-	
-	if (sifs_override < 0 || sifs_override_en < 0 || sifs_override_en > 1) {
-		RTW_INFO("out of range: %u %u\n", sifs_override_en, sifs_override);
-		return count;
-	}
-	
-	if (sifs_override_en == 0) {
-		sifs_override = 16;
-	}
-	
-	pmlmeinfo->sifs_override = sifs_override; 
-	pmlmeinfo->sifs_override_en = sifs_override_en; 
-	
-	RTW_INFO("Write to sifs_override: %u, %u\n", sifs_override_en, sifs_override);
-
-	return count;
-}
-
 static int proc_get_country_code(struct seq_file *m, void *v)
 {
 	struct net_device *dev = m->private;
@@ -6699,8 +6550,6 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
 	RTW_PROC_HDL_SSEQ("chan_plan", proc_get_chan_plan, proc_set_chan_plan),
 	RTW_PROC_HDL_SSEQ("monitor_chan_override", proc_get_monitor_chan_override, proc_set_monitor_chan_override),
 	RTW_PROC_HDL_SSEQ("edcca_threshold_jaguar3_override", proc_get_edcca_threshold_jaguar3_override, proc_set_edcca_threshold_jaguar3_override),
-	RTW_PROC_HDL_SSEQ("slottime_override", proc_get_slottime_override, proc_set_slottime_override),
-	RTW_PROC_HDL_SSEQ("sifs_override", proc_get_sifs_override, proc_set_sifs_override),
 	RTW_PROC_HDL_SSEQ("cap_spt_op_class_ch", proc_get_cap_spt_op_class_ch, proc_set_cap_spt_op_class_ch),
 	RTW_PROC_HDL_SSEQ("reg_spt_op_class_ch", proc_get_reg_spt_op_class_ch, proc_set_reg_spt_op_class_ch),
 	RTW_PROC_HDL_SSEQ("cur_spt_op_class_ch", proc_get_cur_spt_op_class_ch, proc_set_cur_spt_op_class_ch),
@@ -6845,7 +6694,10 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
 #endif
 
 	RTW_PROC_HDL_SSEQ("ack_timeout", proc_get_ack_timeout, proc_set_ack_timeout),
-
+        RTW_PROC_HDL_SSEQ("cts2_timeout", proc_get_cts2_timeout, proc_set_cts2_timeout),
+        RTW_PROC_HDL_SSEQ("slot_time", proc_get_slot_time, proc_set_slot_time),
+        RTW_PROC_HDL_SSEQ("edca_params", proc_get_edca_params, proc_set_edca_params),
+        
 	RTW_PROC_HDL_SSEQ("dynamic_agg_enable", proc_get_dynamic_agg_enable, proc_set_dynamic_agg_enable),
 	RTW_PROC_HDL_SSEQ("fw_offload", proc_get_fw_offload, proc_set_fw_offload),
 

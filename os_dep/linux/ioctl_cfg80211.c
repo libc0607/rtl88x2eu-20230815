@@ -6541,7 +6541,7 @@ static int	cfg80211_rtw_set_txq_params(struct wiphy *wiphy
 #endif /* CONFIG_NARROWBAND_SUPPORTING */
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
-	u8	ac, AIFS, ECWMin, ECWMax, aSifsTime, slottime;
+	u8	ac, AIFS, ECWMin, ECWMax, aSifsTime;
 	u16	TXOP;
 	u8	shift_count = 0;
 	u32	acParm;
@@ -6594,19 +6594,7 @@ static int	cfg80211_rtw_set_txq_params(struct wiphy *wiphy
 		aSifsTime = 64;
 #endif /* CONFIG_NARROWBAND_SUPPORTING */
 
-	if (pmlmeinfo->sifs_override_en == 1) {
-		aSifsTime = pmlmeinfo->sifs_override;
-		RTW_INFO("cfg80211_rtw_set_txq_params: sifs_override enabled, %d\n", aSifsTime);
-	}
-	
-	if (pmlmeinfo->slottime_override_en == 0) {
-		slottime = pmlmeinfo->slotTime;
-	} else {
-		slottime = pmlmeinfo->slottime_override;
-		RTW_INFO("cfg80211_rtw_set_txq_params: slottime_override enabled, %d\n", slottime);
-	}
-	
-	AIFS = params->aifs * slottime + aSifsTime;
+        AIFS = params->aifs * pmlmeinfo->slotTime + aSifsTime;
 
 	while ((params->cwmin + 1) >> shift_count != 1) {
 		shift_count++;

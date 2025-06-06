@@ -8446,6 +8446,146 @@ ssize_t proc_set_ack_timeout(struct file *file, const char __user *buffer, size_
 	return count;
 }
 
+int proc_get_slot_time(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	u8 slot_time_val;
+
+	slot_time_val = rtw_read8(padapter, REG_SLOT);
+
+	RTW_PRINT_SEL(m, "Current Slottime = %d us (0x%x).\n", slot_time_val, slot_time_val);
+
+	return 0;
+}
+
+ssize_t proc_set_slot_time(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	char tmp[32];
+	u32 slot_time_ms;
+
+	if (count > sizeof(tmp)) {
+		rtw_warn_on(1);
+		return -EFAULT;
+	}
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+		int num = sscanf(tmp, "%u", &slot_time_ms);
+
+		if (num < 1) {
+			RTW_INFO(FUNC_ADPT_FMT ": input parameters < 1\n", FUNC_ADPT_ARG(padapter));
+			return -EINVAL;
+		}
+		rtw_write8(padapter, REG_SLOT, (u8)slot_time_ms);
+		RTW_INFO("Set Slottime to %d us.\n", slot_time_ms);
+	}
+	return count;
+}
+
+int proc_get_cts2_timeout(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	u8 cts2to_val;
+
+	cts2to_val = rtw_read8(padapter, REG_CTS2TO);
+
+	RTW_PRINT_SEL(m, "Current CTS2 Timeout = %d us (0x%x).\n", cts2to_val, cts2to_val);
+
+	return 0;
+}
+
+ssize_t proc_set_cts2_timeout(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	char tmp[32];
+	u32 cts2to_val;
+
+	if (count > sizeof(tmp)) {
+		rtw_warn_on(1);
+		return -EFAULT;
+	}
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+		int num = sscanf(tmp, "%u", &cts2to_val);
+
+		if (num < 1) {
+			RTW_INFO(FUNC_ADPT_FMT ": input parameters < 1\n", FUNC_ADPT_ARG(padapter));
+			return -EINVAL;
+		}
+		rtw_write8(padapter, REG_CTS2TO, (u8)cts2to_val);
+		RTW_INFO("Set CTS2 Timeout to %d us.\n", cts2to_val);
+	}
+	return count;
+}
+
+int proc_get_edca_params(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	u32 tmp, aifs, cwmin, cwmax, txop;
+	
+        /* entry indx: 0->vo, 1->vi, 2->be, 3->bk. */
+        /* acParm = AIFS | (ECWMin << 8) | (ECWMax << 12) | (TXOP << 16);*/ 
+        
+	tmp = rtw_read32(padapter, REG_EDCA_VO_PARAM);
+	RTW_PRINT_SEL(m, "Queue VO(0): AIFS=%d, CWmin=%d, CWmax=%d, TXOP=%d\n", 
+                tmp&0xff, (tmp>>8)&0xf, (tmp>>12)&0xf,(tmp>>16)&0xffff);
+                
+        tmp = rtw_read32(padapter, REG_EDCA_VI_PARAM);
+	RTW_PRINT_SEL(m, "Queue VI(1): AIFS=%d, CWmin=%d, CWmax=%d, TXOP=%d\n", 
+                tmp&0xff, (tmp>>8)&0xf, (tmp>>12)&0xf,(tmp>>16)&0xffff);
+
+        tmp = rtw_read32(padapter, REG_EDCA_BE_PARAM);
+	RTW_PRINT_SEL(m, "Queue BE(2): AIFS=%d, CWmin=%d, CWmax=%d, TXOP=%d\n", 
+                tmp&0xff, (tmp>>8)&0xf, (tmp>>12)&0xf,(tmp>>16)&0xffff);
+                
+        tmp = rtw_read32(padapter, REG_EDCA_BK_PARAM);
+	RTW_PRINT_SEL(m, "Queue BK(3): AIFS=%d, CWmin=%d, CWmax=%d, TXOP=%d\n", 
+                tmp&0xff, (tmp>>8)&0xf, (tmp>>12)&0xf,(tmp>>16)&0xffff);        
+                
+	return 0;
+}
+
+ssize_t proc_set_edca_params(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	char tmp[32];
+	u32 queue_id, aifs, cwmin, cwmax, txop;
+
+	if (count > sizeof(tmp)) {
+		rtw_warn_on(1);
+		return -EFAULT;
+	}
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+		int num = sscanf(tmp, "%u %u %u %u %u", &queue_id, &aifs, &cwmin, &cwmax, &txop);
+
+		if (num < 1) {
+			RTW_INFO(FUNC_ADPT_FMT ": input parameters < 1\n", FUNC_ADPT_ARG(padapter));
+			return -EINVAL;
+		}
+		
+		if (queue_id < 0 || queue_id > 3) {
+			RTW_INFO(FUNC_ADPT_FMT ": Wrong queue id\n", FUNC_ADPT_ARG(padapter));
+			return -EINVAL;
+		}
+		
+		rtw_write32(padapter, REG_EDCA_VO_PARAM+queue_id*4, 
+                        (aifs&0xff) | ((cwmin&0xf)<<8) | ((cwmax&0xf)<<12) | ((txop&0xffff)<<16) 
+                );
+		
+		RTW_INFO("Set custom EDCA param, id=%d, aifs=%d, cwmin=%d, cwmax=%d, txop=%d.\n", 
+                        queue_id, aifs, cwmin, cwmax, txop                
+                );
+	}
+	return count;
+}
+
 ssize_t proc_set_fw_offload(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
 {
 	struct net_device *dev = data;
