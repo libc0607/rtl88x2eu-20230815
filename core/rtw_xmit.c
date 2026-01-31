@@ -16,9 +16,108 @@
 
 #include <drv_types.h>
 #include <hal_data.h>
+#include <linux/miscdevice.h>
+#include <linux/mm.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+
+
+static int ShareTxBufLen = 0; /* default disabled */
+module_param(ShareTxBufLen, int, 0444);
+MODULE_PARM_DESC(ShareTxBufLen, "Enable shared mem variable /dev/wifi_tx_buffer_free_frames for TX buffer length monitoring");
+
+/* ... then your wifi_stats_init function ... */
 
 static u8 P802_1H_OUI[P80211_OUI_LEN] = { 0x00, 0x00, 0xf8 };
 static u8 RFC1042_OUI[P80211_OUI_LEN] = { 0x00, 0x00, 0x00 };
+
+// ------------  Shared mem init -------------------------------
+/* Global pointer for the shared page */
+static int *shared_val_ptr=NULL;
+
+/**
+ * sync_wifi_stat - Updates the shared memory from the internal driver variable.
+ * @internal_value: The current value of pxmitpriv->free_xmit_extbuf_cnt
+ * * Call this inside your driver's transmit/free logic (4000x per second).
+ */
+void sync_wifi_stat(int internal_value) {	
+	if (shared_val_ptr != NULL) {    
+        /* Direct write to the shared page. 
+           On ARM, a 32-bit aligned store is atomic. */
+        *shared_val_ptr = internal_value;
+    }
+ 
+}
+EXPORT_SYMBOL(sync_wifi_stat);
+
+static int wifi_stats_mmap(struct file *filp, struct vm_area_struct *vma) {
+    unsigned long pfn;
+    unsigned long size = vma->vm_end - vma->vm_start;
+
+    if (size > PAGE_SIZE)
+        return -EINVAL;
+
+    /* Get Page Frame Number of our allocated page */
+    pfn = virt_to_phys((void *)shared_val_ptr) >> PAGE_SHIFT;
+
+    /* Map the physical page to userspace virtual memory */
+    if (remap_pfn_range(vma, vma->vm_start, pfn, size, vma->vm_page_prot)) {
+        return -EAGAIN;
+    }
+
+    return 0;
+}
+
+static const struct file_operations wifi_stats_fops = {
+    //.owner = THIS_MODULE, //This will prevent the rmmod while there is mmap the shared memory. 
+	.owner = NULL, 
+    .mmap  = wifi_stats_mmap,
+};
+
+static struct miscdevice wifi_stats_dev = {
+    .minor = MISC_DYNAMIC_MINOR,
+    .name  = "wifi_tx_buffer_free_frames",
+    .fops  = &wifi_stats_fops,
+};
+
+// REMOVE __init here. This function must stay in memory.
+int wifi_stats_init(void) {
+	if (ShareTxBufLen==0)
+		return 0;
+
+	pr_info("8812eu: wifi_stats_init");
+    // Check if already initialized to prevent double-allocation
+    if (shared_val_ptr) return 0; 	 
+    // Use GFP_ATOMIC if you suspect this is called in an atomic context
+    // but GFP_KERNEL is usually fine in the init_xmit_priv path.
+    shared_val_ptr = (int *)get_zeroed_page(GFP_KERNEL);
+    
+    if (!shared_val_ptr) {
+        return -ENOMEM;
+    }
+
+    if (misc_register(&wifi_stats_dev)) {
+        free_page((unsigned long)shared_val_ptr);
+        shared_val_ptr = NULL;
+        return -1;
+    }
+	pr_info("wifi_stats: Module loaded. Shared page at %px\n", shared_val_ptr);
+
+    return 0;
+}
+
+
+static void wifi_stats_exit(void) {	    
+    if (shared_val_ptr) {
+		misc_deregister(&wifi_stats_dev);
+        free_page((unsigned long)shared_val_ptr);
+		shared_val_ptr = NULL;
+		pr_info("wifi_stats: Module unloaded\n");
+    }    
+}
+
+// ------------ END Shared mem init -------------------------------
+
 
 static void _init_txservq(struct tx_servq *ptxservq)
 {
@@ -272,9 +371,11 @@ s32	_rtw_init_xmit_priv(struct xmit_priv *pxmitpriv, _adapter *padapter)
 #endif
 		pxmitbuf++;
 
-	}
+	}	
+	wifi_stats_init();//Init Shared memory for TxBuf counter
 
 	pxmitpriv->free_xmit_extbuf_cnt = NR_XMIT_EXTBUFF;
+	sync_wifi_stat(pxmitpriv->free_xmit_extbuf_cnt);
 
 	for (i = 0; i < CMDBUF_MAX; i++) {
 		pxmitbuf = &pxmitpriv->pcmd_xmitbuf[i];
@@ -388,6 +489,7 @@ void _rtw_free_xmit_priv(struct xmit_priv *pxmitpriv)
 	struct xmit_frame	*pxmitframe = (struct xmit_frame *) pxmitpriv->pxmit_frame_buf;
 	struct xmit_buf *pxmitbuf = (struct xmit_buf *)pxmitpriv->pxmitbuf;
 
+	wifi_stats_exit();
 
 	rtw_hal_free_xmit_priv(padapter);
 
@@ -3726,7 +3828,8 @@ struct xmit_buf *rtw_alloc_xmitbuf_ext(struct xmit_priv *pxmitpriv)
 	}
 
 	if (pxmitbuf !=  NULL) {
-		pxmitpriv->free_xmit_extbuf_cnt--;
+		pxmitpriv->free_xmit_extbuf_cnt--;		
+		sync_wifi_stat(pxmitpriv->free_xmit_extbuf_cnt);
 #ifdef DBG_XMIT_BUF_EXT
 		RTW_INFO("DBG_XMIT_BUF_EXT ALLOC no=%d,  free_xmit_extbuf_cnt=%d\n", pxmitbuf->no, pxmitpriv->free_xmit_extbuf_cnt);
 #endif
@@ -3776,6 +3879,7 @@ s32 rtw_free_xmitbuf_ext(struct xmit_priv *pxmitpriv, struct xmit_buf *pxmitbuf)
 
 	rtw_list_insert_tail(&(pxmitbuf->list), get_list_head(pfree_queue));
 	pxmitpriv->free_xmit_extbuf_cnt++;
+	sync_wifi_stat(pxmitpriv->free_xmit_extbuf_cnt);
 #ifdef DBG_XMIT_BUF_EXT
 	RTW_INFO("DBG_XMIT_BUF_EXT FREE no=%d, free_xmit_extbuf_cnt=%d\n", pxmitbuf->no , pxmitpriv->free_xmit_extbuf_cnt);
 #endif
@@ -4884,7 +4988,7 @@ int rtw_ieee80211_radiotap_iterator_init(
 	struct ieee80211_radiotap_header *radiotap_header,
 	int max_length, const struct ieee80211_radiotap_vendor_namespaces *vns);
 
- #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
  static struct xmit_frame* monitor_alloc_mgtxmitframe(struct xmit_priv *pxmitpriv) {
 	int tries;
 	int delay = 300;
@@ -4896,10 +5000,10 @@ int rtw_ieee80211_radiotap_iterator_init(
 			rtw_udelay_os(delay);
 			delay += delay/2;
 		}
-		pmgntframe = alloc_mgtxmitframe(pxmitpriv);
+        pmgntframe = alloc_mgtxmitframe(pxmitpriv);
 		if(pmgntframe != NULL) break;
 	}
-	return pmgntframe;
+            return pmgntframe;
 }
 
 s32 rtw_monitor_xmit_entry(struct sk_buff *skb, struct net_device *ndev)
