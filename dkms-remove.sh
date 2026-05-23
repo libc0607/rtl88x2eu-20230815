@@ -1,24 +1,24 @@
 #!/bin/bash
 
 if [[ $EUID -ne 0 ]]; then
-  echo "You must run this with superuser priviliges.  Try \"sudo ./dkms-remove.sh\"" 2>&1
+  echo "You must run this with superuser privileges."
   exit 1
-else
-  echo "About to run dkms removal steps..."
 fi
 
-DRV_DIR=rtl88x2eu
 DRV_NAME=rtl88x2eu
 DRV_VERSION=5.15.0.1
+CONF_FILE="/etc/sysctl.d/99-${DRV_NAME}.conf"
 
-dkms remove ${DRV_NAME}/${DRV_VERSION} --all
-rm -rf /usr/src/${DRV_NAME}-${DRV_VERSION}
+echo "Removing $DRV_NAME $DRV_VERSION from DKMS..."
 
-RESULT=$?
-if [[ "$RESULT" != "0" ]]; then
-  echo "Error occurred while running dkms remove." 2>&1
-else
-  echo "Finished running dkms removal steps."
+dkms remove -m ${DRV_NAME} -v ${DRV_VERSION} --all
+
+# Clean up the specific networking tweak we added
+if [ -f "$CONF_FILE" ]; then
+    echo "Removing driver-specific networking tweaks..."
+    rm "$CONF_FILE"
+    # Apply changes to re-enable IPv6 for whatever interface was blocked
+    sysctl --system
 fi
 
-exit $RESULT
+echo "Finished removal."
