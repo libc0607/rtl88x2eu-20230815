@@ -3127,8 +3127,11 @@ static int rtw_wx_set_enc_ext(struct net_device *dev,
 		ret = -1;
 		goto exit;
 	}
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0))
+        strscpy((char *)param->u.crypt.alg, alg_name, IEEE_CRYPT_ALG_NAME_LEN);
+#else
 	strncpy((char *)param->u.crypt.alg, alg_name, IEEE_CRYPT_ALG_NAME_LEN);
+#endif
 
 	if (pext->ext_flags & IW_ENCODE_EXT_SET_TX_KEY)
 		param->u.crypt.set_tx = 1;
